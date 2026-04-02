@@ -41,8 +41,8 @@ func main() {
 			period = "week"
 		}
 		return map[string]any{
-			"period":   period,
-			"visitors": rand.Intn(10000) + 1000,
+			"period":    period,
+			"visitors":  rand.Intn(10000) + 1000,
 			"pageViews": rand.Intn(50000) + 5000,
 			"topPages": []map[string]any{
 				{"path": "/", "views": rand.Intn(5000) + 1000},
