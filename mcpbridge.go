@@ -1,10 +1,6 @@
 package dark
 
-import (
-	"encoding/json"
-	"fmt"
-	"strings"
-)
+import "strings"
 
 // mcpBaseCSS provides reset styles and MCP theme variable defaults.
 const mcpBaseCSS = `*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:var(--mcp-ui-font-family,system-ui,-apple-system,sans-serif);background:var(--mcp-ui-bg-primary,#fff);color:var(--mcp-ui-text-primary,#000)}`
@@ -81,14 +77,7 @@ window.__dark_bridge={
 })();`
 
 // assembleMCPHTML builds a self-contained HTML document for an MCP App.
-// It combines SSR'd HTML, CSS, props JSON, the app bridge, and the client
-// hydration bundle into a single HTML string.
-func assembleMCPHTML(ssrHTML, css string, props map[string]any, clientJS string) (string, error) {
-	propsJSON, err := json.Marshal(props)
-	if err != nil {
-		return "", fmt.Errorf("dark: failed to marshal MCP props: %w", err)
-	}
-
+func assembleMCPHTML(ssrHTML, css string, propsJSON []byte, clientJS string) string {
 	var b strings.Builder
 	b.Grow(len(ssrHTML) + len(css) + len(clientJS) + len(mcpAppBridgeJS) + len(propsJSON) + 512)
 
@@ -104,27 +93,23 @@ func assembleMCPHTML(ssrHTML, css string, props map[string]any, clientJS string)
 	}
 	b.WriteString("</head><body>")
 
-	// SSR'd HTML for immediate display.
 	b.WriteString("<div id=\"app\">")
 	b.WriteString(ssrHTML)
 	b.WriteString("</div>")
 
-	// Props for client-side hydration.
 	b.WriteString("<script>window.__dark_mcp_props=")
 	b.Write(propsJSON)
 	b.WriteString(";</script>")
 
-	// App bridge (postMessage JSON-RPC).
 	b.WriteString("<script>")
 	b.WriteString(mcpAppBridgeJS)
 	b.WriteString("</script>")
 
-	// Client bundle (Preact + component + hydration logic).
 	b.WriteString("<script>")
 	b.WriteString(clientJS)
 	b.WriteString("</script>")
 
 	b.WriteString("</body></html>")
 
-	return b.String(), nil
+	return b.String()
 }

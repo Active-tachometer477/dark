@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+const mcpAppMIMEType = "text/html;profile=mcp-app"
 
 // MCPApp is an MCP server that uses dark's SSR + esbuild toolchain to render
 // TSX components as self-contained MCP App UIs.
@@ -40,7 +43,6 @@ func NewMCPApp(name, version string, opts ...MCPOption) (*MCPApp, error) {
 		o(cfg)
 	}
 
-	// Create renderer for SSR (no layout, no islands).
 	rendCfg := &config{
 		poolSize:     cfg.poolSize,
 		templateDir:  cfg.templateDir,
@@ -52,7 +54,6 @@ func NewMCPApp(name, version string, opts ...MCPOption) (*MCPApp, error) {
 		return nil, fmt.Errorf("dark: failed to create MCP renderer: %w", err)
 	}
 
-	// Create client-side bundler.
 	bundler, err := newMCPBundler(cfg)
 	if err != nil {
 		rend.close()
@@ -103,10 +104,12 @@ func (m *MCPApp) StreamableHTTPHandler() http.Handler {
 // The handler receives typed args and returns props for the TSX component.
 // dark SSR-renders the component, then assembles a self-contained HTML with
 // hydration support and returns it as an inline resource in the tool result.
+//
+// AddUITool is a package-level function (not a method) because Go does not
+// support generic methods.
 func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(ctx context.Context, args Args) (map[string]any, error)) {
 	resourceURI := fmt.Sprintf("ui://%s/%s.html", app.config.serverName, name)
 
-	// Pre-build the client bundle (cached).
 	clientJS, clientCSS, err := app.bundler.BuildClientBundle(def.Component)
 	if err != nil {
 		panic(fmt.Sprintf("dark: failed to build MCP client bundle for %s: %v", def.Component, err))
@@ -131,66 +134,32 @@ func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(c
 		func(ctx context.Context, req *mcp.CallToolRequest, args Args) (*mcp.CallToolResult, any, error) {
 			props, err := handler(ctx, args)
 			if err != nil {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{
-						&mcp.TextContent{Text: fmt.Sprintf("Error: %v", err)},
-					},
-					IsError: true,
-				}, nil, nil
+				return mcpErrorResult("Error: %v", err)
 			}
 			if props == nil {
 				props = map[string]any{}
 			}
 
-			// SSR render the component with props.
+			propsJSON, err := json.Marshal(props)
+			if err != nil {
+				return mcpErrorResult("props marshal error: %v", err)
+			}
+
 			ssrHTML, ssrCSS, err := app.renderer.render(def.Component, nil, props, true)
 			if err != nil {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{
-						&mcp.TextContent{Text: fmt.Sprintf("SSR render error: %v", err)},
-					},
-					IsError: true,
-				}, nil, nil
+				return mcpErrorResult("SSR render error: %v", err)
 			}
 
-			// Combine SSR CSS with client CSS.
-			css := ssrCSS
-			if clientCSS != "" {
-				if css != "" {
-					css += "\n"
-				}
-				css += clientCSS
-			}
-
-			// In dev mode, rebuild client bundle on each call.
 			js := clientJS
+			cCSS := clientCSS
 			if app.config.devMode {
-				freshJS, freshCSS, err := app.bundler.BuildClientBundle(def.Component)
-				if err == nil {
+				if freshJS, freshCSS, err := app.bundler.BuildClientBundle(def.Component); err == nil {
 					js = freshJS
-					if freshCSS != "" {
-						css = ssrCSS
-						if css != "" {
-							css += "\n"
-						}
-						css += freshCSS
-					}
+					cCSS = freshCSS
 				}
 			}
 
-			// Assemble self-contained HTML.
-			html, err := assembleMCPHTML(ssrHTML, css, props, js)
-			if err != nil {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{
-						&mcp.TextContent{Text: fmt.Sprintf("HTML assembly error: %v", err)},
-					},
-					IsError: true,
-				}, nil, nil
-			}
-
-			// Return HTML as embedded resource + props as text for the LLM.
-			propsJSON, _ := json.Marshal(props)
+			html := assembleMCPHTML(ssrHTML, joinCSS(ssrCSS, cCSS), propsJSON, js)
 
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
@@ -198,7 +167,7 @@ func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(c
 					&mcp.EmbeddedResource{
 						Resource: &mcp.ResourceContents{
 							URI:      resourceURI,
-							MIMEType: "text/html;profile=mcp-app",
+							MIMEType: mcpAppMIMEType,
 							Text:     html,
 						},
 					},
@@ -219,12 +188,7 @@ func AddTextTool[Args any](app *MCPApp, name, description string, handler func(c
 		func(ctx context.Context, req *mcp.CallToolRequest, args Args) (*mcp.CallToolResult, any, error) {
 			text, err := handler(ctx, args)
 			if err != nil {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{
-						&mcp.TextContent{Text: fmt.Sprintf("Error: %v", err)},
-					},
-					IsError: true,
-				}, nil, nil
+				return mcpErrorResult("Error: %v", err)
 			}
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
@@ -233,4 +197,27 @@ func AddTextTool[Args any](app *MCPApp, name, description string, handler func(c
 			}, nil, nil
 		},
 	)
+}
+
+func mcpErrorResult(format string, args ...any) (*mcp.CallToolResult, any, error) {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(format, args...)},
+		},
+		IsError: true,
+	}, nil, nil
+}
+
+func joinCSS(parts ...string) string {
+	var b strings.Builder
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(p)
+	}
+	return b.String()
 }

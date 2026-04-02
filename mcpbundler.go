@@ -1,8 +1,6 @@
 package dark
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,17 +59,12 @@ func ensureMCPPreactInstalled() (string, error) {
 	return nmDir, nil
 }
 
-// mcpCacheDir returns a deterministic cache directory for MCP bundler assets.
 func mcpCacheDir() (string, error) {
-	h := sha256.New()
-	h.Write([]byte("dark-mcp-bundler\n"))
-	hash := hex.EncodeToString(h.Sum(nil))[:12]
-
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, ".cache", "dark", "mcp", hash)
+	dir := filepath.Join(home, ".cache", "dark", "mcp")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -87,7 +80,6 @@ func (b *mcpBundler) BuildClientBundle(component string) (js string, css string,
 		return "", "", fmt.Errorf("dark: failed to resolve MCP component path %s: %w", component, err)
 	}
 
-	// Check cache.
 	b.cacheMu.RLock()
 	entry, ok := b.cache[absPath]
 	b.cacheMu.RUnlock()
@@ -102,13 +94,11 @@ func (b *mcpBundler) BuildClientBundle(component string) (js string, css string,
 		}
 	}
 
-	// Build client entry and bundle.
 	js, css, err = b.buildClientBundle(absPath)
 	if err != nil {
 		return "", "", err
 	}
 
-	// Cache.
 	var modTime int64
 	if info, err := os.Stat(absPath); err == nil {
 		modTime = info.ModTime().UnixNano()
@@ -166,15 +156,7 @@ func (b *mcpBundler) buildClientBundle(absComponentPath string) (string, string,
 		return "", "", fmt.Errorf("dark: MCP esbuild produced no output for %s", absComponentPath)
 	}
 
-	var js, css string
-	for _, f := range result.OutputFiles {
-		if strings.HasSuffix(f.Path, ".css") {
-			css = strings.TrimSpace(string(f.Contents))
-		} else {
-			js = strings.TrimSpace(string(f.Contents))
-		}
-	}
-
+	js, css := extractJSAndCSS(result.OutputFiles)
 	return js, css, nil
 }
 

@@ -85,11 +85,8 @@ func TestMCPSSRRender(t *testing.T) {
 }
 
 func TestMCPAssembleHTML(t *testing.T) {
-	props := map[string]any{"name": "Test"}
-	html, err := assembleMCPHTML("<div>Hello Test</div>", "body{color:red}", props, "console.log('client')")
-	if err != nil {
-		t.Fatalf("assembleMCPHTML: %v", err)
-	}
+	propsJSON := []byte(`{"name":"Test"}`)
+	html := assembleMCPHTML("<div>Hello Test</div>", "body{color:red}", propsJSON, "console.log('client')")
 
 	checks := []struct {
 		name    string

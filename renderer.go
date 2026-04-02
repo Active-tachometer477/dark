@@ -486,16 +486,20 @@ func (r *renderer) bundleComponent(filePath string) (string, string, error) {
 		return "", "", fmt.Errorf("dark: esbuild produced no output for %s", filePath)
 	}
 
-	var js, css string
-	for _, f := range result.OutputFiles {
+	js, css := extractJSAndCSS(result.OutputFiles)
+	return js, css, nil
+}
+
+// extractJSAndCSS splits esbuild output files into JS and CSS content.
+func extractJSAndCSS(files []api.OutputFile) (js, css string) {
+	for _, f := range files {
 		if strings.HasSuffix(f.Path, ".css") {
 			css = strings.TrimSpace(string(f.Contents))
 		} else {
 			js = strings.TrimSpace(string(f.Contents))
 		}
 	}
-
-	return js, css, nil
+	return js, css
 }
 
 // exactExternalPlugin creates an esbuild plugin that only externalizes exact
