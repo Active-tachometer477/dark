@@ -1,0 +1,68 @@
+package dark
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+)
+
+// MiddlewareFunc is a standard Go HTTP middleware.
+type MiddlewareFunc func(http.Handler) http.Handler
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (sr *statusRecorder) WriteHeader(code int) {
+	sr.status = code
+	sr.ResponseWriter.WriteHeader(code)
+}
+
+// Logger returns a middleware that logs each request.
+func Logger() MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+			next.ServeHTTP(rec, r)
+			log.Printf("%s %s %d %s", r.Method, r.URL.Path, rec.status, time.Since(start))
+		})
+	}
+}
+
+// Recover returns a middleware that recovers from panics and returns a 500 response.
+func Recover() MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if err := recover(); err != nil {
+					log.Printf("dark: panic: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
+			}()
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RecoverWithErrorPage returns a middleware that recovers from panics and renders
+// the configured error page. Use this instead of Recover() to get custom error pages.
+func (app *App) RecoverWithErrorPage() MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					log.Printf("dark: panic: %v", rec)
+					err, ok := rec.(error)
+					if !ok {
+						err = fmt.Errorf("panic: %v", rec)
+					}
+					app.renderError(w, r, err)
+				}
+			}()
+			next.ServeHTTP(w, r)
+		})
+	}
+}

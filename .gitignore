@@ -1,0 +1,28 @@
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output
+_examples/hello/hello
+_examples/database/database
+_examples/deploy/cmd/server/server
+
+# Generated files
+_generated/
+
+# Dependencies (installed by ramune at runtime)
+node_modules/
+.ramune-cache/
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# OS files
+.DS_Store
+Thumbs.db
