@@ -401,11 +401,53 @@ myapp/
     └── style.css
 ```
 
+## MCP Apps (experimental)
+
+> **Note:** This feature has not been fully tested yet. The API may change.
+
+Dark supports [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) — interactive HTML UIs returned by MCP tools, rendered inside host sandboxed iframes. Built on the official Go SDK [`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk).
+
+```go
+mcpApp, err := dark.NewMCPApp("my-server", "1.0.0",
+    dark.WithMCPTemplateDir("views"),
+)
+defer mcpApp.Close()
+
+// UI tool: returns an interactive TSX component
+dark.AddUITool(mcpApp, "dashboard", dark.UIToolDef{
+    Description: "Show analytics dashboard",
+    Component:   "mcp/dashboard.tsx",
+}, func(ctx context.Context, args DashboardArgs) (map[string]any, error) {
+    return map[string]any{"data": fetchData(args.Period)}, nil
+})
+
+// Text tool: standard MCP tool returning plain text
+dark.AddTextTool(mcpApp, "stats", "Get statistics",
+    func(ctx context.Context, args StatsArgs) (string, error) {
+        return "Stats: ...", nil
+    })
+
+mcpApp.RunStdio(ctx)           // stdio transport
+// or
+mcpApp.StreamableHTTPHandler() // HTTP transport
+```
+
+UI tools produce self-contained HTML through the following pipeline:
+
+1. Go handler returns props
+2. Preact SSR via ramune pool → initial HTML (instant display)
+3. esbuild bundles the client (Preact inlined, cached)
+4. SSR HTML + props + App Bridge + hydration JS assembled into a single HTML
+5. Returned as an inline resource in the MCP tool result, rendered in the host iframe
+
+Example: [`examples/mcp-app/`](examples/mcp-app/)
+
 ## Examples
 
 - **[hello](_examples/hello/)** — feature-rich demo: routing, layouts, sessions, islands, streaming SSR, form validation
 - **[database](_examples/database/)** — SQLite CRUD with sessions and authentication
 - **[deploy](_examples/deploy/)** — production setup with Dockerfile and Fly.io config
+- **[mcp-app](examples/mcp-app/)** — MCP Apps: interactive UI tools with SSR + hydration
 
 ## Deploy
 
