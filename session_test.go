@@ -185,7 +185,7 @@ func TestContextCookieHelpers(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	client := newSessionClient(t)
@@ -237,7 +237,7 @@ func TestSessionMiddlewareBasic(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	client := newSessionClient(t)
@@ -277,7 +277,7 @@ func TestSessionFlashAcrossRequests(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	client := newSessionClient(t)
@@ -319,7 +319,7 @@ func TestSessionTamperedCookieStartsFresh(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// Send a tampered session cookie.
@@ -354,7 +354,7 @@ func TestSessionNoMiddlewarePanics(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/boom")
@@ -384,7 +384,7 @@ func TestSessionCookieDefaults(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, _ := http.Post(srv.URL+"/set", "", nil)
@@ -423,7 +423,7 @@ func TestSessionCustomOptions(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, _ := http.Post(srv.URL+"/set", "", nil)
@@ -468,7 +468,7 @@ func TestSessionClear(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	client := newSessionClient(t)

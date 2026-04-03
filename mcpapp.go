@@ -107,12 +107,12 @@ func (m *MCPApp) StreamableHTTPHandler() http.Handler {
 //
 // AddUITool is a package-level function (not a method) because Go does not
 // support generic methods.
-func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(ctx context.Context, args Args) (map[string]any, error)) {
+func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(ctx context.Context, args Args) (map[string]any, error)) error {
 	resourceURI := fmt.Sprintf("ui://%s/%s.html", app.config.serverName, name)
 
 	clientJS, clientCSS, err := app.bundler.BuildClientBundle(def.Component)
 	if err != nil {
-		panic(fmt.Sprintf("dark: failed to build MCP client bundle for %s: %v", def.Component, err))
+		return fmt.Errorf("dark: failed to build MCP client bundle for %s: %w", def.Component, err)
 	}
 
 	app.mu.Lock()
@@ -175,6 +175,7 @@ func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(c
 			}, nil, nil
 		},
 	)
+	return nil
 }
 
 // AddTextTool registers a standard text-returning MCP tool.

@@ -35,7 +35,7 @@ func TestGroupUseMiddleware(t *testing.T) {
 		})
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	client := newSessionClient(t)
@@ -88,7 +88,7 @@ func TestRequireAuthPassesAuthenticated(t *testing.T) {
 		})
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	client := newSessionClient(t)
@@ -137,7 +137,7 @@ func TestRequireAuthCustomCheck(t *testing.T) {
 		})
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	client := newSessionClient(t)
@@ -196,7 +196,7 @@ func TestNestedGroupInheritsMiddleware(t *testing.T) {
 		})
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	client := &http.Client{
@@ -238,7 +238,7 @@ func TestRequireAuthHtmxRedirect(t *testing.T) {
 		})
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("GET", srv.URL+"/admin/data", nil)

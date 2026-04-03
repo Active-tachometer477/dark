@@ -36,7 +36,7 @@ func TestIslandSSRMarkers(t *testing.T) {
 	app := newIslandApp(t)
 	defer app.Close()
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -66,7 +66,7 @@ func TestIslandSSRContent(t *testing.T) {
 	app := newIslandApp(t)
 	defer app.Close()
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -92,7 +92,7 @@ func TestIslandWithLayout(t *testing.T) {
 	app := newIslandApp(t)
 	defer app.Close()
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -128,7 +128,7 @@ func TestIslandHtmxSkipsScript(t *testing.T) {
 	app := newIslandApp(t)
 	defer app.Close()
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("GET", srv.URL+"/", nil)
@@ -183,7 +183,7 @@ func TestIslandClientBundleServed(t *testing.T) {
 	app := newIslandApp(t)
 	defer app.Close()
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// Get the page to find the chunk URL.
@@ -233,7 +233,7 @@ func TestIslandClientBundleContent(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// Get the page HTML.
@@ -289,7 +289,7 @@ func TestHydrationRuntimeContainsHtmxHandler(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// The htmx handler is now in the inline boot script in the page HTML.
@@ -330,7 +330,7 @@ func TestHydrationRuntimeContainsErrorBoundary(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// Error boundary is now in the per-island chunk.
@@ -365,7 +365,7 @@ func TestIslandSSRNoHydratedAttr(t *testing.T) {
 	app := newIslandApp(t)
 	defer app.Close()
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -413,7 +413,7 @@ func TestIslandLoadingStrategies(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -435,7 +435,7 @@ func TestIslandPerIslandChunks(t *testing.T) {
 	app := newIslandApp(t)
 	defer app.Close()
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")

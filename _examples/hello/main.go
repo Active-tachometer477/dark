@@ -65,7 +65,7 @@ var (
 			Slug:    "hello-dark",
 			Title:   "Introducing Dark Framework",
 			Excerpt: "A new Go SSR web framework powered by Preact and htmx.",
-			Body:    "Dark is a Go web framework that brings the best of modern frontend to server-side rendering.\n\nIt uses Preact for templating, htmx for interactivity, and Islands architecture for selective hydration.\n\nWith Phase 5, Dark now supports nested layouts, form validation, head/meta management, and streaming SSR.",
+			Body:    "Dark is a Go web framework that brings the best of modern frontend to server-side rendering.\n\nIt uses Preact for templating, htmx for interactivity, and Islands architecture for selective hydration.\n\nDark supports nested layouts, form validation, head/meta management, and streaming SSR.",
 			Author:  "Dark Team",
 			Date:    "2026-04-02",
 		},
@@ -391,5 +391,5 @@ func main() {
 	})
 
 	fmt.Println("Listening on http://localhost:3000")
-	log.Fatal(http.ListenAndServe(":3000", app.Handler()))
+	log.Fatal(http.ListenAndServe(":3000", app.MustHandler()))
 }

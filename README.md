@@ -42,18 +42,25 @@ No shared libraries needed. Works on all platforms including Windows. Trade-off:
 Dark follows standard `net/http` conventions. There are no external router dependencies.
 
 - Internal routing uses `http.NewServeMux` with Go 1.22+ enhanced patterns (`GET /users/{id}`)
-- `app.Handler()` returns an `http.Handler` — plug it into any Go HTTP stack
+- `app.Handler()` returns `(http.Handler, error)` — plug it into any Go HTTP stack
 - Middleware is the standard `func(http.Handler) http.Handler` signature
 - Dark does not own the server — you start it yourself with `http.ListenAndServe` or `http.Server`
 
 ```go
-// Simple
-http.ListenAndServe(":3000", app.Handler())
+// Simple — MustHandler() panics on error (convenient for main)
+http.ListenAndServe(":3000", app.MustHandler())
+
+// With error handling
+handler, err := app.Handler()
+if err != nil {
+    log.Fatal(err)
+}
+http.ListenAndServe(":3000", handler)
 
 // With http.Server for full control
 srv := &http.Server{
     Addr:         ":8080",
-    Handler:      app.Handler(),
+    Handler:      app.MustHandler(),
     ReadTimeout:  5 * time.Second,
     WriteTimeout: 10 * time.Second,
 }
@@ -76,7 +83,11 @@ Any existing `net/http` middleware works with `app.Use()` out of the box.
 - **Head management** — per-page `<title>`, `<meta>`, and OpenGraph tags
 - **API routes** — JSON endpoints alongside page routes
 - **Dev mode** — hot reload, error overlay with source maps, TypeScript type generation
-- **SSR caching** — optional in-memory cache for rendered output
+- **SSR caching** — LRU in-memory cache with ETag / 304 Not Modified
+- **CSRF protection** — session-based tokens with automatic htmx/TSX integration
+- **Concurrent loaders** — parallel data fetching with result merging
+- **Static site generation** — pre-render routes to static HTML at build time
+- **Scaffold CLI** — `dark new` / `dark generate` for project and component scaffolding
 
 ## Quick Start
 
@@ -111,8 +122,16 @@ func main() {
         },
     })
 
-    log.Fatal(http.ListenAndServe(":3000", app.Handler()))
+    log.Fatal(http.ListenAndServe(":3000", app.MustHandler()))
 }
+```
+
+Or use the scaffold CLI to generate a new project:
+
+```bash
+go install github.com/i2y/dark/cmd/dark@latest
+dark new myapp
+cd myapp && go mod tidy && make dev
 ```
 
 The layout wraps every page. Each page component's output is passed as `children`. On htmx requests (`HX-Request` header), the layout is skipped and only the page fragment is returned.
@@ -167,7 +186,8 @@ app.Patch("/settings", dark.Route{...})
 ```go
 dark.Route{
     Component: "pages/show.tsx",   // TSX file (relative to template dir)
-    Loader:    loaderFunc,          // data fetching (GET)
+    Loader:    loaderFunc,          // data fetching (single)
+    Loaders:   []dark.LoaderFunc{...}, // concurrent data fetching (merged)
     Action:    actionFunc,          // mutations (POST/PUT/DELETE)
     Layout:    "layouts/extra.tsx", // per-route layout (nests inside global layout)
     Streaming: &boolVal,            // per-route streaming SSR override
@@ -252,6 +272,10 @@ ctx.DeleteCookie("theme")
 
 // Session (requires Sessions middleware)
 ctx.Session() *Session
+
+// Request-scoped values (set by middleware, read by loaders)
+ctx.Set("key", value)
+ctx.Get("key") any
 ```
 
 ## Sessions
@@ -294,6 +318,58 @@ g.Use(dark.RequireAuth(
     }),
 ))
 ```
+
+## CSRF Protection
+
+Session-based CSRF tokens with automatic htmx integration:
+
+```go
+app.Use(dark.Sessions(secret))
+app.Use(dark.CSRF())
+```
+
+The middleware automatically:
+- Generates a per-session token
+- Injects `<meta name="csrf-token">` into `<head>`
+- Injects an htmx config script that attaches `X-CSRF-Token` to all htmx requests
+- Adds `_csrfToken` to Loader props (use in hidden form fields)
+- Validates `X-CSRF-Token` header or `_csrf` form field on POST/PUT/DELETE/PATCH
+
+```tsx
+export default function Form({ _csrfToken }) {
+  return (
+    <form method="POST" action="/submit">
+      <input type="hidden" name="_csrf" value={_csrfToken} />
+      <button type="submit">Submit</button>
+    </form>
+  );
+}
+```
+
+htmx forms require no extra setup — the token header is attached automatically.
+
+## Concurrent Loaders
+
+Fetch data from multiple sources in parallel:
+
+```go
+app.Get("/dashboard", dark.Route{
+    Component: "pages/dashboard.tsx",
+    Loaders: []dark.LoaderFunc{
+        func(ctx dark.Context) (any, error) {
+            return map[string]any{"user": fetchUser(ctx.Param("id"))}, nil
+        },
+        func(ctx dark.Context) (any, error) {
+            return map[string]any{"activity": fetchActivity(ctx.Param("id"))}, nil
+        },
+        func(ctx dark.Context) (any, error) {
+            return map[string]any{"notifications": fetchNotifications()}, nil
+        },
+    },
+})
+```
+
+Results are merged into a single props map. If any loader returns an error, the request fails immediately.
 
 ## Middleware
 
@@ -374,7 +450,8 @@ dark.New(
     dark.WithDependencies("lodash"),          // npm packages (preact is always included)
     dark.WithDevMode(true),                  // hot reload + error overlay
     dark.WithStreaming(true),                // streaming SSR globally
-    dark.WithSSRCache(1000),                 // SSR output cache entries
+    dark.WithSSRCache(1000),                 // LRU SSR output cache (enables ETag)
+    dark.WithLogger(slog.Default()),         // structured logger for framework internals
     dark.WithErrorComponent("errors/500.tsx"),
     dark.WithNotFoundComponent("errors/404.tsx"),
 )
@@ -401,6 +478,50 @@ myapp/
     └── style.css
 ```
 
+## Static Site Generation
+
+Pre-render routes to static HTML at build time:
+
+```go
+err := app.GenerateStaticSite("dist", []dark.StaticRoute{
+    {
+        Path:      "/",
+        Component: "pages/index.tsx",
+        Loader:    indexLoader,
+    },
+    {
+        Path:      "/about",
+        Component: "pages/about.tsx",
+    },
+    {
+        // Parameterized routes: StaticPaths returns all concrete paths
+        Component: "pages/post.tsx",
+        StaticPaths: func() []string {
+            return []string{"/posts/1", "/posts/2", "/posts/3"}
+        },
+        Loader: postLoader,
+    },
+})
+```
+
+Output is written to `dist/` as `index.html` files with all CSS and island assets copied.
+
+## Scaffold CLI
+
+Generate projects and components:
+
+```bash
+go install github.com/i2y/dark/cmd/dark@latest
+
+# New project
+dark new myapp
+cd myapp && go mod tidy && make dev
+
+# Generate components
+dark generate route users    # → views/pages/users.tsx
+dark generate island counter # → views/islands/counter.tsx
+```
+
 ## MCP Apps (experimental)
 
 > **Note:** This feature has not been fully tested yet. The API may change.
@@ -414,12 +535,14 @@ mcpApp, err := dark.NewMCPApp("my-server", "1.0.0",
 defer mcpApp.Close()
 
 // UI tool: returns an interactive TSX component
-dark.AddUITool(mcpApp, "dashboard", dark.UIToolDef{
+if err := dark.AddUITool(mcpApp, "dashboard", dark.UIToolDef{
     Description: "Show analytics dashboard",
     Component:   "mcp/dashboard.tsx",
 }, func(ctx context.Context, args DashboardArgs) (map[string]any, error) {
     return map[string]any{"data": fetchData(args.Period)}, nil
-})
+}); err != nil {
+    log.Fatal(err)
+}
 
 // Text tool: standard MCP tool returning plain text
 dark.AddTextTool(mcpApp, "stats", "Get statistics",
@@ -445,6 +568,7 @@ Example: [`examples/mcp-app/`](examples/mcp-app/)
 ## Examples
 
 - **[hello](_examples/hello/)** — feature-rich demo: routing, layouts, sessions, islands, streaming SSR, form validation
+- **[showcase](_examples/showcase/)** — CSRF, concurrent loaders, SSR cache + ETag, SSG, Context.Set/Get
 - **[database](_examples/database/)** — SQLite CRUD with sessions and authentication
 - **[deploy](_examples/deploy/)** — production setup with Dockerfile and Fly.io config
 - **[mcp-app](examples/mcp-app/)** — MCP Apps: interactive UI tools with SSR + hydration

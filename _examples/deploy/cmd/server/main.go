@@ -64,7 +64,7 @@ func main() {
 	})
 
 	fmt.Printf("Listening on :%s (dev=%v)\n", port, devMode)
-	log.Fatal(http.ListenAndServe(":"+port, app.Handler()))
+	log.Fatal(http.ListenAndServe(":"+port, app.MustHandler()))
 }
 
 func envOr(key, fallback string) string {

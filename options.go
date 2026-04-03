@@ -1,6 +1,9 @@
 package dark
 
-import "runtime"
+import (
+	"log/slog"
+	"runtime"
+)
 
 type config struct {
 	poolSize          int
@@ -12,6 +15,7 @@ type config struct {
 	notFoundComponent string
 	streaming         bool
 	ssrCacheSize      int // max SSR output cache entries; 0 = disabled
+	logger            *slog.Logger
 }
 
 func defaultConfig() *config {
@@ -19,6 +23,7 @@ func defaultConfig() *config {
 		poolSize:     runtime.NumCPU(),
 		templateDir:  "views",
 		dependencies: []string{"preact", "preact-render-to-string"},
+		logger:       slog.Default(),
 	}
 }
 
@@ -72,4 +77,10 @@ func WithStreaming(enabled bool) Option {
 // 0 (default) disables caching.
 func WithSSRCache(maxEntries int) Option {
 	return func(c *config) { c.ssrCacheSize = maxEntries }
+}
+
+// WithLogger sets the structured logger for dark's internal log output.
+// Defaults to slog.Default().
+func WithLogger(logger *slog.Logger) Option {
+	return func(c *config) { c.logger = logger }
 }

@@ -25,7 +25,7 @@ func TestDevReloadSSEEndpoint(t *testing.T) {
 
 	app.Get("/", Route{Component: "simple.tsx"})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// The SSE endpoint should respond with text/event-stream.
@@ -63,7 +63,7 @@ func TestDevReloadNoSSEInProdMode(t *testing.T) {
 
 	app.Get("/", Route{Component: "simple.tsx"})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/_dark/reload")
@@ -104,7 +104,7 @@ export default function Test() { return <div>version1</div>; }`), 0o644); err !=
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// First request.
@@ -162,7 +162,7 @@ func TestIslandClientBundleNoCacheInDevMode(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// Fetch the page to find a chunk URL.

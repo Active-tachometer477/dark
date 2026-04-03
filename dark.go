@@ -1,11 +1,12 @@
 package dark
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -129,27 +130,36 @@ func (app *App) Island(name, tsxPath string) {
 }
 
 // Handler returns the application as an http.Handler with middleware applied.
-func (app *App) Handler() http.Handler {
+func (app *App) Handler() (http.Handler, error) {
 	return app.buildHandler()
 }
 
-func (app *App) buildHandler() http.Handler {
+// MustHandler is like Handler but panics on error. Useful in main() or tests.
+func (app *App) MustHandler() http.Handler {
+	h, err := app.Handler()
+	if err != nil {
+		panic(err)
+	}
+	return h
+}
+
+func (app *App) buildHandler() (http.Handler, error) {
 	// Build islands if any were registered.
 	if len(app.islands) > 0 {
 		if err := app.renderer.buildIslands(app.islands, app.config); err != nil {
-			panic(fmt.Sprintf("dark: failed to build islands: %v", err))
+			return nil, fmt.Errorf("dark: failed to build islands: %w", err)
 		}
 	}
 
 	// Prepare route-specific layouts.
 	if err := app.renderer.prepareRouteLayouts(app.routes); err != nil {
-		panic(fmt.Sprintf("dark: failed to prepare route layouts: %v", err))
+		return nil, fmt.Errorf("dark: failed to prepare route layouts: %w", err)
 	}
 
 	// Generate TypeScript types from Props fields (dev mode only).
 	if app.config.devMode {
 		if err := app.GenerateTypes(); err != nil {
-			log.Printf("dark: type generation: %v", err)
+			app.config.logger.Warn("type generation failed", "error", err)
 		}
 	}
 
@@ -157,7 +167,7 @@ func (app *App) buildHandler() http.Handler {
 	if app.config.devMode && app.reloader == nil {
 		reloader, err := newDevReloader(app.renderer, app.config, app.islands)
 		if err != nil {
-			log.Printf("dark: failed to start dev reloader: %v", err)
+			app.config.logger.Warn("failed to start dev reloader", "error", err)
 		} else {
 			app.reloader = reloader
 		}
@@ -207,7 +217,7 @@ func (app *App) buildHandler() http.Handler {
 	for i := len(app.middlewares) - 1; i >= 0; i-- {
 		handler = app.middlewares[i](handler)
 	}
-	return handler
+	return handler, nil
 }
 
 // muxPattern converts a method and dark pattern to a ServeMux pattern.
@@ -235,7 +245,14 @@ func (app *App) runActionAndLoader(ctx *darkContext, route *Route) (any, error, 
 	}
 
 	var props any
-	if route.Loader != nil {
+	switch {
+	case len(route.Loaders) > 0:
+		var err error
+		props, err = runConcurrentLoaders(ctx, route.Loaders)
+		if err != nil {
+			return nil, err, false
+		}
+	case route.Loader != nil:
 		var err error
 		props, err = route.Loader(ctx)
 		if err != nil {
@@ -253,7 +270,54 @@ func (app *App) runActionAndLoader(ctx *darkContext, route *Route) (any, error, 
 		props = mergeHead(props, ctx.head)
 	}
 
+	// Inject CSRF token into props if CSRF middleware is active.
+	if token := ctx.Get(csrfTokenKey); token != nil {
+		m := propsAsMap(props)
+		m[csrfTokenKey] = token
+		props = m
+	}
+
 	return props, nil, false
+}
+
+// runConcurrentLoaders executes multiple loaders concurrently and merges results.
+// Each loader gets its own darkContext to avoid data races on mutable fields.
+func runConcurrentLoaders(ctx *darkContext, loaders []LoaderFunc) (any, error) {
+	// Pre-parse query and form to avoid races on lazy init in loaders.
+	if ctx.query == nil {
+		ctx.query = ctx.r.URL.Query()
+	}
+	if ctx.r.Form == nil {
+		ctx.r.ParseForm()
+	}
+
+	type result struct {
+		props any
+		err   error
+	}
+	ch := make(chan result, len(loaders))
+	for _, loader := range loaders {
+		// Each goroutine gets its own darkContext with shared (read-only) r and w.
+		loaderCtx := &darkContext{w: ctx.w, r: ctx.r, query: ctx.query}
+		go func(fn LoaderFunc) {
+			p, err := fn(loaderCtx)
+			ch <- result{props: p, err: err}
+		}(loader)
+	}
+
+	merged := make(map[string]any)
+	for range loaders {
+		r := <-ch
+		if r.err != nil {
+			return nil, r.err
+		}
+		if r.props != nil {
+			for k, v := range propsAsMap(r.props) {
+				merged[k] = v
+			}
+		}
+	}
+	return merged, nil
 }
 
 func (app *App) shouldStream(route *Route) bool {
@@ -310,7 +374,7 @@ func (app *App) streamingPageHandler(route *Route) http.HandlerFunc {
 			return
 		}
 
-		// Phase 1: Render shell (layout with placeholder).
+		// Render shell (layout with placeholder).
 		before, after, shellCSS, err := app.renderer.renderShell(layouts, props)
 		if err != nil {
 			app.renderError(w, r, err)
@@ -334,7 +398,7 @@ func (app *App) streamingPageHandler(route *Route) http.HandlerFunc {
 		fmt.Fprint(w, before)
 		flusher.Flush()
 
-		// Phase 2: Render component (no layout).
+		// Render component (no layout).
 		componentHTML, componentCSS, err := app.renderer.render(route.Component, nil, props, true)
 		if err != nil {
 			// Head already sent — inject error as inline script.
@@ -374,15 +438,8 @@ func (app *App) streamingPageHandler(route *Route) http.HandlerFunc {
 	}
 }
 
-// renderNonStreaming is the standard (non-streaming) render path.
-func (app *App) renderNonStreaming(w http.ResponseWriter, r *http.Request, ctx *darkContext, component string, layouts []string, props any) {
-	skipLayout := ctx.isHXRequest()
-	output, css, err := app.renderer.render(component, layouts, props, skipLayout)
-	if err != nil {
-		app.renderError(w, r, err)
-		return
-	}
-
+// postProcessHTML applies dark-head extraction and CSS injection to rendered HTML.
+func (app *App) postProcessHTML(output, css string, skipLayout bool) string {
 	if skipLayout {
 		output = stripDarkHead(output)
 	} else {
@@ -392,15 +449,41 @@ func (app *App) renderNonStreaming(w http.ResponseWriter, r *http.Request, ctx *
 			output = injectIntoHead(output, headContent)
 		}
 	}
+	return app.injectCSS(output, css, skipLayout)
+}
 
-	output = app.injectCSS(output, css, skipLayout)
+// renderNonStreaming is the standard (non-streaming) render path.
+func (app *App) renderNonStreaming(w http.ResponseWriter, r *http.Request, ctx *darkContext, component string, layouts []string, props any) {
+	skipLayout := ctx.isHXRequest()
+	output, css, err := app.renderer.render(component, layouts, props, skipLayout)
+	if err != nil {
+		app.renderError(w, r, err)
+		return
+	}
+
+	output = app.postProcessHTML(output, css, skipLayout)
 
 	if app.config.devMode && !skipLayout {
 		output = injectDevReloadScript(output)
 	}
 
+	// ETag: GET requests with SSR cache enabled, excluding htmx partials and dev mode.
+	if r.Method == http.MethodGet && !skipLayout && !app.config.devMode && app.ssrCacheEnabled() {
+		h := sha256.Sum256([]byte(output))
+		etag := `W/"` + hex.EncodeToString(h[:8]) + `"`
+		w.Header().Set("ETag", etag)
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	io.WriteString(w, output)
+}
+
+func (app *App) ssrCacheEnabled() bool {
+	return app.renderer.ssrCache.maxSize > 0
 }
 
 func (app *App) apiHandler(route *APIRoute) http.HandlerFunc {
@@ -505,7 +588,7 @@ func (app *App) renderNotFound(w http.ResponseWriter, r *http.Request) {
 			io.WriteString(w, output)
 			return
 		}
-		log.Printf("dark: not-found component render failed: %v", renderErr)
+		app.config.logger.Error("not-found component render failed", "error", renderErr)
 	}
 	http.Error(w, "Not Found", http.StatusNotFound)
 }
@@ -531,7 +614,7 @@ func (app *App) renderError(w http.ResponseWriter, r *http.Request, err error) {
 			io.WriteString(w, output)
 			return
 		}
-		log.Printf("dark: error component render failed: %v", renderErr)
+		app.config.logger.Error("error component render failed", "error", renderErr)
 	}
 
 	http.Error(w, "Internal Server Error", http.StatusInternalServerError)

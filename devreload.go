@@ -2,7 +2,6 @@ package dark
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,7 +46,7 @@ func newDevReloader(r *renderer, cfg *config, islands []islandEntry) (*devReload
 	}
 
 	go d.watchLoop()
-	log.Printf("dark: dev reloader watching %s", cfg.templateDir)
+	cfg.logger.Debug("dev reloader watching", "dir", cfg.templateDir)
 	return d, nil
 }
 
@@ -93,7 +92,7 @@ func (d *devReloader) watchLoop() {
 			if !ok {
 				return
 			}
-			log.Printf("dark: watcher error: %v", err)
+			d.config.logger.Warn("watcher error", "error", err)
 
 		case <-d.done:
 			return
@@ -111,9 +110,9 @@ func (d *devReloader) handleChange(path string) {
 	if d.config.layoutFile != "" {
 		layoutAbs, _ := filepath.Abs(filepath.Join(d.config.templateDir, d.config.layoutFile))
 		if absPath == layoutAbs {
-			log.Printf("dark: layout changed, reloading: %s", path)
+			d.config.logger.Debug("layout changed, reloading", "path", path)
 			if err := d.renderer.reloadLayout(d.config); err != nil {
-				log.Printf("dark: layout reload error: %v", err)
+				d.config.logger.Error("layout reload error", "error", err)
 			}
 			return
 		}
@@ -121,22 +120,22 @@ func (d *devReloader) handleChange(path string) {
 
 	// Check if it's a route-specific layout file.
 	if d.renderer.isRouteLayout(absPath) {
-		log.Printf("dark: route layout changed, reloading: %s", path)
+		d.config.logger.Debug("route layout changed, reloading", "path", path)
 		// Find the relative path for the layout.
 		relPath, _ := filepath.Rel(d.config.templateDir, absPath)
 		if err := d.renderer.reloadRouteLayout(relPath); err != nil {
-			log.Printf("dark: route layout reload error: %v", err)
+			d.config.logger.Error("route layout reload error", "error", err)
 		}
 		return
 	}
 
 	// CSS file changed: invalidate everything since we don't track CSS dependencies.
 	if filepath.Ext(absPath) == ".css" {
-		log.Printf("dark: CSS changed, invalidating all caches: %s", path)
+		d.config.logger.Debug("CSS changed, invalidating all caches", "path", path)
 		d.renderer.invalidateAll()
 		if len(d.islands) > 0 {
 			if err := d.renderer.rebuildClientBundle(d.islands, d.config); err != nil {
-				log.Printf("dark: client bundle rebuild error: %v", err)
+				d.config.logger.Error("client bundle rebuild error", "error", err)
 			}
 		}
 		return
@@ -146,17 +145,17 @@ func (d *devReloader) handleChange(path string) {
 	for _, isl := range d.islands {
 		islAbs, _ := filepath.Abs(filepath.Join(d.config.templateDir, isl.tsxPath))
 		if absPath == islAbs {
-			log.Printf("dark: island changed, rebuilding: %s", path)
+			d.config.logger.Debug("island changed, rebuilding", "path", path)
 			d.renderer.invalidateAllCaches()
 			if err := d.renderer.rebuildClientBundle(d.islands, d.config); err != nil {
-				log.Printf("dark: client bundle rebuild error: %v", err)
+				d.config.logger.Error("client bundle rebuild error", "error", err)
 			}
 			return
 		}
 	}
 
 	// Regular component: invalidate its cache entry.
-	log.Printf("dark: component changed: %s", path)
+	d.config.logger.Debug("component changed", "path", path)
 	d.renderer.invalidateCache(absPath)
 }
 

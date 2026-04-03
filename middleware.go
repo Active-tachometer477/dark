@@ -2,7 +2,7 @@ package dark
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -27,7 +27,12 @@ func Logger() MiddlewareFunc {
 			start := time.Now()
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(rec, r)
-			log.Printf("%s %s %d %s", r.Method, r.URL.Path, rec.status, time.Since(start))
+			slog.Info("request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", rec.status,
+				"duration", time.Since(start),
+			)
 		})
 	}
 }
@@ -38,7 +43,7 @@ func Recover() MiddlewareFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
-					log.Printf("dark: panic: %v", err)
+					slog.Error("panic recovered", "error", err)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
 			}()
@@ -54,7 +59,7 @@ func (app *App) RecoverWithErrorPage() MiddlewareFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rec := recover(); rec != nil {
-					log.Printf("dark: panic: %v", rec)
+					slog.Error("panic recovered", "error", rec)
 					err, ok := rec.(error)
 					if !ok {
 						err = fmt.Errorf("panic: %v", rec)

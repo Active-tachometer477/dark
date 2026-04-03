@@ -28,7 +28,7 @@ func TestIntegrationGetWithLoader(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -70,7 +70,7 @@ func TestIntegrationWithLayout(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -111,7 +111,7 @@ func TestIntegrationHtmxSkipsLayout(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("GET", srv.URL+"/", nil)
@@ -150,7 +150,7 @@ func TestIntegrationParamRoute(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/users/42")
@@ -177,7 +177,7 @@ func TestIntegration404(t *testing.T) {
 
 	app.Get("/", Route{Component: "simple.tsx"})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/notfound")
@@ -204,7 +204,7 @@ func TestCustom404Page(t *testing.T) {
 
 	app.Get("/", Route{Component: "simple.tsx"})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/notfound")
@@ -242,7 +242,7 @@ func TestCustom404WithLayout(t *testing.T) {
 
 	app.Get("/", Route{Component: "simple.tsx"})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/missing")
@@ -280,7 +280,7 @@ func TestCustom500Page(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -322,7 +322,7 @@ func TestDevModeOverlay(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -365,7 +365,7 @@ func TestDevModeReloadScriptInjected(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -403,7 +403,7 @@ func TestProdModeNoReloadScript(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -440,7 +440,7 @@ func TestCSSInjectedAsLink(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -479,7 +479,7 @@ func TestCSSInlineForHtmx(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("GET", srv.URL+"/", nil)
@@ -520,7 +520,7 @@ func TestCSSEndpointServed(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// First, get the page to populate the CSS cache.
@@ -578,7 +578,7 @@ func TestNoCSSWhenNoImport(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -614,7 +614,7 @@ func TestAPIGetJSON(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/api/hello")
@@ -662,7 +662,7 @@ func TestAPIPostWithBindJSON(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	body := bytes.NewBufferString(`{"name":"Alice"}`)
@@ -699,7 +699,7 @@ func TestAPIErrorResponse(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/api/fail")
@@ -735,7 +735,7 @@ func TestAPIGenericError(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/api/crash")
@@ -774,7 +774,7 @@ func TestAPINoContent(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("DELETE", srv.URL+"/api/items/99", nil)
@@ -811,7 +811,7 @@ func TestAPIPutPatch(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	// PUT
@@ -865,7 +865,7 @@ func TestAPIMiddlewareApplied(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/api/test")
@@ -900,7 +900,7 @@ func TestNestedLayoutRendering(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/admin")
@@ -949,7 +949,7 @@ func TestGroupRoutesInheritLayout(t *testing.T) {
 		})
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/admin/home")
@@ -993,7 +993,7 @@ func TestGroupNestedWithRouteLayout(t *testing.T) {
 		})
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/admin/settings")
@@ -1039,7 +1039,7 @@ func TestHtmxSkipsAllLayouts(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("GET", srv.URL+"/admin", nil)
@@ -1087,7 +1087,7 @@ func TestValidationErrorsInProps(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Post(srv.URL+"/submit", "application/x-www-form-urlencoded", strings.NewReader("name="))
@@ -1131,7 +1131,7 @@ func TestValidationFormDataPreserved(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Post(srv.URL+"/submit", "application/x-www-form-urlencoded", strings.NewReader("name=John&email="))
@@ -1173,7 +1173,7 @@ func TestValidationNoErrors(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Post(srv.URL+"/submit", "application/x-www-form-urlencoded", strings.NewReader("name=Valid"))
@@ -1213,7 +1213,7 @@ func TestValidationHtmxPartial(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("POST", srv.URL+"/submit", strings.NewReader("name="))
@@ -1263,7 +1263,7 @@ func TestDarkHeadExtraction(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/post")
@@ -1318,7 +1318,7 @@ func TestDarkHeadTitleOverride(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/post")
@@ -1359,7 +1359,7 @@ func TestContextSetTitle(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -1399,7 +1399,7 @@ func TestDarkHeadStrippedForHtmx(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("GET", srv.URL+"/post", nil)
@@ -1448,7 +1448,7 @@ func TestStreamingBasicResponse(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -1489,7 +1489,7 @@ func TestStreamingHtmxFallback(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest("GET", srv.URL+"/", nil)
@@ -1530,7 +1530,7 @@ func TestStreamingDisabledByDefault(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/")
@@ -1568,7 +1568,7 @@ func TestStreamingPerRouteOverride(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/stream")
@@ -1607,7 +1607,7 @@ func TestStreamingWithCSS(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/styled")

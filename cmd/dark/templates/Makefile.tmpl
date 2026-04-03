@@ -1,0 +1,13 @@
+.PHONY: dev build test clean
+
+dev:
+	go run .
+
+build:
+	go build -o {{.Name}} .
+
+test:
+	go test ./...
+
+clean:
+	rm -f {{.Name}}

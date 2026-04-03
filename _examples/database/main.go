@@ -160,7 +160,7 @@ func main() {
 	})
 
 	fmt.Println("Listening on http://localhost:3000")
-	log.Fatal(http.ListenAndServe(":3000", app.Handler()))
+	log.Fatal(http.ListenAndServe(":3000", app.MustHandler()))
 }
 
 // --- Database layer ---

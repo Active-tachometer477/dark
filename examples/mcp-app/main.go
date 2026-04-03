@@ -31,7 +31,7 @@ func main() {
 	defer mcpApp.Close()
 
 	// UI tool: interactive analytics dashboard
-	dark.AddUITool(mcpApp, "dashboard", dark.UIToolDef{
+	if err := dark.AddUITool(mcpApp, "dashboard", dark.UIToolDef{
 		Description: "Show an interactive analytics dashboard for the given time period",
 		Component:   "mcp/dashboard.tsx",
 		Title:       "Analytics Dashboard",
@@ -51,7 +51,9 @@ func main() {
 				{"path": "/pricing", "views": rand.Intn(1000) + 100},
 			},
 		}, nil
-	})
+	}); err != nil {
+		log.Fatal(err)
+	}
 
 	// Text tool: plain text statistics
 	dark.AddTextTool(mcpApp, "stats", "Get summary statistics for a given metric as plain text",

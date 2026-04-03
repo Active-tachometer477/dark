@@ -1,10 +1,33 @@
 package dark
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
 )
+
+type contextValuesKey struct{}
+
+// SetValue stores a request-scoped value that can be retrieved via Context.Get.
+// Use this in middleware to pass data to Loaders/Actions.
+func SetValue(r *http.Request, key string, value any) *http.Request {
+	if vals, ok := r.Context().Value(contextValuesKey{}).(map[string]any); ok {
+		// Map already in context — mutate in place, no need to re-wrap.
+		vals[key] = value
+		return r
+	}
+	vals := map[string]any{key: value}
+	return r.WithContext(context.WithValue(r.Context(), contextValuesKey{}, vals))
+}
+
+// getValue retrieves a request-scoped value set by SetValue or Context.Set.
+func getValue(r *http.Request, key string) any {
+	if vals, ok := r.Context().Value(contextValuesKey{}).(map[string]any); ok {
+		return vals[key]
+	}
+	return nil
+}
 
 // FieldError represents a validation error for a specific form field.
 type FieldError struct {
@@ -47,6 +70,8 @@ type Context interface {
 	GetCookie(name string) (string, error)
 	DeleteCookie(name string)
 	Session() *Session
+	Set(key string, value any)
+	Get(key string) any
 }
 
 type darkContext struct {
@@ -169,6 +194,14 @@ func (c *darkContext) Session() *Session {
 		return sess
 	}
 	panic("dark: Session() called without Sessions middleware; add app.Use(dark.Sessions(secret))")
+}
+
+func (c *darkContext) Set(key string, value any) {
+	c.r = SetValue(c.r, key, value)
+}
+
+func (c *darkContext) Get(key string) any {
+	return getValue(c.r, key)
 }
 
 func (c *darkContext) isHXRequest() bool {

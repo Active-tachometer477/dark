@@ -113,7 +113,7 @@ func TestDevOverlayRendersHTML(t *testing.T) {
 		},
 	})
 
-	srv := httptest.NewServer(app.Handler())
+	srv := httptest.NewServer(app.MustHandler())
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/broken")

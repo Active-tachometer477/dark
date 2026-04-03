@@ -6,7 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -207,7 +207,7 @@ func encodeSignedCookie(data map[string]any, secret []byte) (string, error) {
 	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	result := payload + "." + sig
 	if len(result) > 4096 {
-		log.Printf("dark: session cookie exceeds 4KB (%d bytes); browsers may reject it", len(result))
+		slog.Warn("session cookie exceeds 4KB; browsers may reject it", "bytes", len(result))
 	}
 	return result, nil
 }
@@ -331,7 +331,7 @@ func (sw *sessionResponseWriter) saveIfNeeded() {
 
 	encoded, err := encodeSignedCookie(sw.session.data, sw.secret)
 	if err != nil {
-		log.Printf("dark: failed to encode session: %v", err)
+		slog.Error("failed to encode session", "error", err)
 		return
 	}
 

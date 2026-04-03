@@ -136,12 +136,14 @@ func TestMCPAppAddUITool(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	AddUITool(app, "greet", UIToolDef{
+	if err := AddUITool(app, "greet", UIToolDef{
 		Description: "Show greeting",
 		Component:   "simple.tsx",
 	}, func(ctx context.Context, args Args) (map[string]any, error) {
 		return map[string]any{"name": args.Name}, nil
-	})
+	}); err != nil {
+		t.Fatalf("AddUITool: %v", err)
+	}
 
 	// Verify tool was registered.
 	app.mu.RLock()
@@ -195,7 +197,7 @@ func TestMCPAppDashboardRoundTrip(t *testing.T) {
 		Title string `json:"title"`
 	}
 
-	AddUITool(app, "dashboard", UIToolDef{
+	if err := AddUITool(app, "dashboard", UIToolDef{
 		Description: "Show dashboard",
 		Component:   "mcp_dashboard.tsx",
 	}, func(ctx context.Context, args Args) (map[string]any, error) {
@@ -203,7 +205,9 @@ func TestMCPAppDashboardRoundTrip(t *testing.T) {
 			"title": args.Title,
 			"items": []string{"alpha", "beta"},
 		}, nil
-	})
+	}); err != nil {
+		t.Fatalf("AddUITool: %v", err)
+	}
 
 	// Verify the tool entry exists.
 	app.mu.RLock()

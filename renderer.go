@@ -74,9 +74,7 @@ type renderer struct {
 	cacheMu sync.RWMutex
 	cache   map[string]*cacheEntry
 
-	ssrCacheMu  sync.RWMutex
-	ssrCache    map[string]*ssrCacheEntry
-	ssrCacheMax int // max entries; 0 = disabled
+	ssrCache *lruCache[ssrCacheEntry]
 }
 
 type ssrCacheEntry struct {
@@ -107,8 +105,7 @@ func newRenderer(cfg *config) (*renderer, error) {
 		cache:        make(map[string]*cacheEntry),
 		pageCSS:      make(map[string]string),
 		routeLayouts: make(map[string]*layoutEntry),
-		ssrCache:     make(map[string]*ssrCacheEntry),
-		ssrCacheMax:  cfg.ssrCacheSize,
+		ssrCache:     newLRUCache[ssrCacheEntry](cfg.ssrCacheSize),
 	}
 
 	// Broadcast require shim to all workers.
@@ -264,9 +261,9 @@ func (r *renderer) render(componentPath string, routeLayouts []string, props any
 
 	// SSR output cache: check before expensive pool.Eval().
 	var ssrKey string
-	if r.ssrCacheMax > 0 {
+	if r.ssrCache.maxSize > 0 {
 		ssrKey = r.ssrCacheKey(componentPath, routeLayouts, skipLayout, propsJSON)
-		if entry := r.getSSRCache(ssrKey); entry != nil {
+		if entry, ok := r.ssrCache.get(ssrKey); ok {
 			return entry.html, entry.css, nil
 		}
 	}
@@ -933,25 +930,10 @@ func (r *renderer) ssrCacheKey(componentPath string, layouts []string, skipLayou
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func (r *renderer) getSSRCache(key string) *ssrCacheEntry {
-	r.ssrCacheMu.RLock()
-	entry := r.ssrCache[key]
-	r.ssrCacheMu.RUnlock()
-	return entry
-}
-
 func (r *renderer) putSSRCache(key, html, css string) {
-	r.ssrCacheMu.Lock()
-	if len(r.ssrCache) >= r.ssrCacheMax {
-		// Simple eviction: clear the entire cache when full.
-		r.ssrCache = make(map[string]*ssrCacheEntry)
-	}
-	r.ssrCache[key] = &ssrCacheEntry{html: html, css: css}
-	r.ssrCacheMu.Unlock()
+	r.ssrCache.put(key, ssrCacheEntry{html: html, css: css})
 }
 
 func (r *renderer) clearSSRCache() {
-	r.ssrCacheMu.Lock()
-	r.ssrCache = make(map[string]*ssrCacheEntry)
-	r.ssrCacheMu.Unlock()
+	r.ssrCache.clear()
 }
