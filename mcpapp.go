@@ -43,18 +43,20 @@ func NewMCPApp(name, version string, opts ...MCPOption) (*MCPApp, error) {
 		o(cfg)
 	}
 
+	kit := resolveUIKit(cfg.uiLibrary)
+
 	rendCfg := &config{
-		poolSize:     cfg.poolSize,
-		templateDir:  cfg.templateDir,
-		dependencies: []string{"preact", "preact-render-to-string"},
-		devMode:      cfg.devMode,
+		poolSize:    cfg.poolSize,
+		templateDir: cfg.templateDir,
+		uiLibrary:   cfg.uiLibrary,
+		devMode:     cfg.devMode,
 	}
 	rend, err := newRenderer(rendCfg)
 	if err != nil {
 		return nil, fmt.Errorf("dark: failed to create MCP renderer: %w", err)
 	}
 
-	bundler, err := newMCPBundler(cfg)
+	bundler, err := newMCPBundler(cfg, kit)
 	if err != nil {
 		rend.close()
 		return nil, fmt.Errorf("dark: failed to create MCP bundler: %w", err)

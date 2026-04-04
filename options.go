@@ -9,7 +9,8 @@ type config struct {
 	poolSize          int
 	templateDir       string
 	layoutFile        string
-	dependencies      []string
+	uiLibrary         UILibrary
+	extraDeps         []string // additional npm dependencies beyond UI library
 	devMode           bool
 	errorComponent    string
 	notFoundComponent string
@@ -20,10 +21,9 @@ type config struct {
 
 func defaultConfig() *config {
 	return &config{
-		poolSize:     runtime.NumCPU(),
-		templateDir:  "views",
-		dependencies: []string{"preact", "preact-render-to-string"},
-		logger:       slog.Default(),
+		poolSize:    runtime.NumCPU(),
+		templateDir: "views",
+		logger:      slog.Default(),
 	}
 }
 
@@ -45,10 +45,16 @@ func WithLayout(file string) Option {
 	return func(c *config) { c.layoutFile = file }
 }
 
-// WithDependencies adds additional npm dependencies beyond preact.
+// WithUILibrary selects the JSX library for SSR and client-side hydration.
+// Defaults to Preact. Use dark.React to switch to React/ReactDOM.
+func WithUILibrary(lib UILibrary) Option {
+	return func(c *config) { c.uiLibrary = lib }
+}
+
+// WithDependencies adds additional npm dependencies beyond the UI library.
 func WithDependencies(pkgs ...string) Option {
 	return func(c *config) {
-		c.dependencies = append(c.dependencies, pkgs...)
+		c.extraDeps = append(c.extraDeps, pkgs...)
 	}
 }
 

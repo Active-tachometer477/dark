@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -390,6 +391,10 @@ func main() {
 		},
 	})
 
-	fmt.Println("Listening on http://localhost:3000")
-	log.Fatal(http.ListenAndServe(":3000", app.MustHandler()))
+	addr := ":3000"
+	if p := os.Getenv("PORT"); p != "" {
+		addr = ":" + p
+	}
+	fmt.Printf("Listening on http://localhost%s\n", addr)
+	log.Fatal(http.ListenAndServe(addr, app.MustHandler()))
 }

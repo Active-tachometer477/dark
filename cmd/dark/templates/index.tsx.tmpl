@@ -1,4 +1,4 @@
-import { h } from 'preact';
+{{if eq .UILib "react"}}import React from 'react';{{else}}import { h } from 'preact';{{end}}
 
 export default function IndexPage({ title, message }) {
   return (

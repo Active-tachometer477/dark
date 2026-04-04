@@ -1,6 +1,6 @@
 # Dark
 
-A Go SSR web framework powered by [Preact](https://preactjs.com/), [htmx](https://htmx.org/), and Islands architecture.
+A Go SSR web framework powered by [Preact](https://preactjs.com/) or [React](https://react.dev/), [htmx](https://htmx.org/), and Islands architecture.
 
 Dark renders TSX components on the server using [ramune](https://github.com/i2y/ramune) (a JS/TS runtime for Go), fetches data with Go Loader/Action functions, and delivers interactive pages through htmx's HTML-over-the-wire approach with minimal client-side JavaScript.
 
@@ -71,7 +71,7 @@ Any existing `net/http` middleware works with `app.Use()` out of the box.
 
 ## Features
 
-- **Server-side rendering** — TSX templates rendered via Preact `renderToString` in a sandboxed JS runtime
+- **Server-side rendering** — TSX templates rendered via Preact or React `renderToString` in a sandboxed JS runtime
 - **Loader/Action pattern** — Go functions for data fetching and mutations, props passed as JSON
 - **htmx integration** — HX-Request aware responses (full page vs HTML fragment)
 - **Islands architecture** — selective client-side hydration with lazy loading (`load`, `idle`, `visible`)
@@ -506,6 +506,43 @@ err := app.GenerateStaticSite("dist", []dark.StaticRoute{
 
 Output is written to `dist/` as `index.html` files with all CSS and island assets copied.
 
+## React Support
+
+Dark defaults to Preact but also supports React. Pass `WithUILibrary(dark.React)` to switch:
+
+```go
+app, err := dark.New(
+    dark.WithUILibrary(dark.React),
+    dark.WithLayout("layouts/default.tsx"),
+    dark.WithTemplateDir("views"),
+)
+```
+
+With React, components use standard React imports:
+
+```tsx
+// views/pages/index.tsx
+import React from 'react';
+
+export default function IndexPage({ message }) {
+  return <h1>{message}</h1>;
+}
+```
+
+Islands use React hooks directly:
+
+```tsx
+// views/islands/counter.tsx
+import React, { useState } from 'react';
+
+export default function Counter({ initial }) {
+  const [count, setCount] = useState(initial || 0);
+  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
+}
+```
+
+MCP Apps also support React via `WithMCPUILibrary(dark.React)`.
+
 ## Scaffold CLI
 
 Generate projects and components:
@@ -513,9 +550,12 @@ Generate projects and components:
 ```bash
 go install github.com/i2y/dark/cmd/dark@latest
 
-# New project
+# New project (defaults to Preact)
 dark new myapp
 cd myapp && go mod tidy && make dev
+
+# New project with React
+dark new myapp --ui react
 
 # Generate components
 dark generate route users    # → views/pages/users.tsx

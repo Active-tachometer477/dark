@@ -12,8 +12,9 @@ import (
 )
 
 // mcpBundler bundles TSX components into self-contained client-side JS
-// for MCP Apps. Unlike the SSR renderer, Preact is bundled inline.
+// for MCP Apps. The UI library (Preact or React) is bundled inline.
 type mcpBundler struct {
+	uikit          *uikit
 	templateDir    string
 	nodeModulesDir string
 	minify         bool
@@ -29,13 +30,14 @@ type mcpBundleEntry struct {
 	modTime  int64
 }
 
-// newMCPBundler creates a bundler and ensures Preact is installed.
-func newMCPBundler(cfg *mcpConfig) (*mcpBundler, error) {
-	nmDir, err := ensureMCPPreactInstalled()
+// newMCPBundler creates a bundler and ensures the UI library is installed.
+func newMCPBundler(cfg *mcpConfig, kit *uikit) (*mcpBundler, error) {
+	nmDir, err := ensureMCPClientInstalled(kit)
 	if err != nil {
-		return nil, fmt.Errorf("dark: failed to install preact for MCP: %w", err)
+		return nil, fmt.Errorf("dark: failed to install client packages for MCP: %w", err)
 	}
 	return &mcpBundler{
+		uikit:          kit,
 		templateDir:    cfg.templateDir,
 		nodeModulesDir: nmDir,
 		minify:         cfg.minify,
@@ -44,35 +46,36 @@ func newMCPBundler(cfg *mcpConfig) (*mcpBundler, error) {
 	}, nil
 }
 
-// ensureMCPPreactInstalled installs Preact into a deterministic cache dir.
-func ensureMCPPreactInstalled() (string, error) {
-	cacheDir, err := mcpCacheDir()
+// ensureMCPClientInstalled installs the UI library into a deterministic cache dir.
+// Each UI library gets its own subdirectory to avoid conflicts.
+func ensureMCPClientInstalled(kit *uikit) (string, error) {
+	cacheDir, err := mcpCacheDir(kit.clientPkgCheck)
 	if err != nil {
 		return "", err
 	}
 	nmDir := filepath.Join(cacheDir, "node_modules")
-	if _, err := os.Stat(filepath.Join(nmDir, "preact", "package.json")); err != nil {
-		if err := ramune.InstallNpmPackages([]string{"preact"}, cacheDir); err != nil {
+	if _, err := os.Stat(filepath.Join(nmDir, kit.clientPkgCheck, "package.json")); err != nil {
+		if err := ramune.InstallNpmPackages(kit.clientPkg, cacheDir); err != nil {
 			return "", err
 		}
 	}
 	return nmDir, nil
 }
 
-func mcpCacheDir() (string, error) {
+func mcpCacheDir(libName string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, ".cache", "dark", "mcp")
+	dir := filepath.Join(home, ".cache", "dark", "mcp", libName)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	return dir, nil
 }
 
-// BuildClientBundle bundles a TSX component into client-side JS with Preact
-// inline and hydration logic. The result is cached by component path.
+// BuildClientBundle bundles a TSX component into client-side JS with the
+// UI library inline and hydration logic. The result is cached by component path.
 func (b *mcpBundler) BuildClientBundle(component string) (js string, css string, err error) {
 	fullPath := filepath.Join(b.templateDir, component)
 	absPath, err := filepath.Abs(fullPath)
@@ -110,12 +113,11 @@ func (b *mcpBundler) BuildClientBundle(component string) (js string, css string,
 	return js, css, nil
 }
 
-// buildClientBundle generates a client-side entry that imports Preact and
-// the component, then hydrates the #app element. It bundles everything into
-// a single IIFE with Preact inlined.
+// buildClientBundle generates a client-side entry that imports the UI library
+// and the component, then hydrates the #app element. It bundles everything into
+// a single IIFE with the UI library inlined.
 func (b *mcpBundler) buildClientBundle(absComponentPath string) (string, string, error) {
-	// Generate entry JS (similar to island entry pattern).
-	entryCode := buildMCPClientEntryJS(absComponentPath)
+	entryCode := buildMCPClientEntryJS(absComponentPath, b.uikit)
 
 	tmpDir, err := os.MkdirTemp("", "dark-mcp-*")
 	if err != nil {
@@ -137,8 +139,8 @@ func (b *mcpBundler) buildClientBundle(absComponentPath string) (string, string,
 		Outdir:            "/",
 		NodePaths:         []string{b.nodeModulesDir},
 		JSX:               api.JSXTransform,
-		JSXFactory:        "h",
-		JSXFragment:       "Fragment",
+		JSXFactory:        b.uikit.jsxFactory,
+		JSXFragment:       b.uikit.jsxFragment,
 		MinifySyntax:      b.minify,
 		MinifyWhitespace:  b.minify,
 		MinifyIdentifiers: b.minify,
@@ -161,17 +163,17 @@ func (b *mcpBundler) buildClientBundle(absComponentPath string) (string, string,
 }
 
 // buildMCPClientEntryJS generates the client-side entry module for an MCP App.
-// It imports Preact + the component, hydrates SSR'd HTML, and listens for
-// tool result updates via the app bridge.
-func buildMCPClientEntryJS(absComponentPath string) string {
+// It imports the UI library + the component, hydrates SSR'd HTML, and listens
+// for tool result updates via the app bridge.
+func buildMCPClientEntryJS(absComponentPath string, kit *uikit) string {
 	var sb strings.Builder
-	sb.WriteString("import { h, hydrate, render } from 'preact';\n")
+	sb.WriteString(kit.mcpImport)
 	fmt.Fprintf(&sb, "import __Comp from '%s';\n", absComponentPath)
 	sb.WriteString("var C = __Comp.default || __Comp;\n")
-	sb.WriteString(`var app = document.getElementById('app');
+	fmt.Fprintf(&sb, `var app = document.getElementById('app');
 var props = window.__dark_mcp_props || {};
 
-hydrate(h(C, props), app);
+%s
 
 __dark_bridge.onToolResult(function(result) {
   if (result && result.content) {
@@ -179,7 +181,7 @@ __dark_bridge.onToolResult(function(result) {
       if (result.content[i].text) {
         try {
           props = JSON.parse(result.content[i].text);
-          render(h(C, props), app);
+          %s
         } catch(e) {}
       }
     }
@@ -187,7 +189,7 @@ __dark_bridge.onToolResult(function(result) {
 });
 
 __dark_bridge.ready();
-`)
+`, kit.mcpHydrate, kit.mcpRender)
 	return sb.String()
 }
 

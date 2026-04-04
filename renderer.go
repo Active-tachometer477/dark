@@ -31,8 +31,6 @@ const requireShim = `globalThis.require = function(name) {
   throw new Error('dark: module not found: ' + name);
 };`
 
-const rtsResolveJS = "var __rts = typeof preact_render_to_string === 'function' ? preact_render_to_string : preact_render_to_string.renderToString;\n"
-
 // Global JS variable names for broadcast components.
 const (
 	globalLayout            = "__dark_layout"
@@ -48,6 +46,7 @@ type layoutEntry struct {
 
 type renderer struct {
 	pool                 *ramune.RuntimePool
+	uikit                *uikit
 	templateDir          string
 	devMode              bool
 	hasLayout            bool
@@ -90,16 +89,26 @@ type cacheEntry struct {
 }
 
 func newRenderer(cfg *config) (*renderer, error) {
-	pool, err := ramune.NewPool(cfg.poolSize,
-		ramune.Dependencies(cfg.dependencies...),
+	kit := resolveUIKit(cfg.uiLibrary)
+	deps := append([]string{}, kit.ssrDeps...)
+	deps = append(deps, cfg.extraDeps...)
+
+	poolOpts := []ramune.Option{
+		ramune.Dependencies(deps...),
 		ramune.WithPermissions(ramune.SandboxPermissions()),
-	)
+	}
+	if kit.preloadJS != "" {
+		poolOpts = append(poolOpts, ramune.PreloadJS(kit.preloadJS))
+	}
+
+	pool, err := ramune.NewPool(cfg.poolSize, poolOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("dark: failed to create runtime pool: %w", err)
 	}
 
 	r := &renderer{
 		pool:         pool,
+		uikit:        kit,
 		templateDir:  cfg.templateDir,
 		devMode:      cfg.devMode,
 		cache:        make(map[string]*cacheEntry),
@@ -271,12 +280,13 @@ func (r *renderer) render(componentPath string, routeLayouts []string, props any
 	var code strings.Builder
 	fmt.Fprintf(&code, "var __props = %s;\n", propsJSON)
 	fmt.Fprintf(&code, "%s\n", bundledJS)
-	code.WriteString(rtsResolveJS)
+	code.WriteString(r.uikit.rtsResolveJS)
 	code.WriteString("var __Component = __dark_mod.default || __dark_mod;\n")
 
-	// Build the innermost expression first: h(__Component, __props)
+	// Build the innermost expression first: createElement(__Component, __props)
 	// Then wrap with route layouts (innermost first), then global layout (outermost).
-	inner := "preact.h(__Component, __props)"
+	ce := r.uikit.createElement
+	inner := ce + "(__Component, __props)"
 
 	if !skipLayout {
 		// Wrap with route layouts (innermost first, iterate in reverse).
@@ -287,12 +297,12 @@ func (r *renderer) render(componentPath string, routeLayouts []string, props any
 			}
 			varName := fmt.Sprintf("__RL%d", i)
 			fmt.Fprintf(&code, "var %s = globalThis.%s.default || globalThis.%s;\n", varName, entry.globalName, entry.globalName)
-			inner = fmt.Sprintf("preact.h(%s, Object.assign({}, __props, { children: %s }))", varName, inner)
+			inner = fmt.Sprintf("%s(%s, Object.assign({}, __props, { children: %s }))", ce, varName, inner)
 		}
 
 		if r.hasLayout {
 			code.WriteString(layoutResolveJS)
-			inner = fmt.Sprintf("preact.h(__Layout, Object.assign({}, __props, { children: %s }))", inner)
+			inner = fmt.Sprintf("%s(__Layout, Object.assign({}, __props, { children: %s }))", ce, inner)
 		}
 	}
 
@@ -347,10 +357,11 @@ func (r *renderer) renderShell(routeLayouts []string, props any) (before string,
 
 	var code strings.Builder
 	fmt.Fprintf(&code, "var __props = %s;\n", propsJSON)
-	code.WriteString(rtsResolveJS)
+	code.WriteString(r.uikit.rtsResolveJS)
 
 	// Build nested layout expression with a marker element as the innermost child.
-	inner := "preact.h('dark-stream-marker', null)"
+	ce := r.uikit.createElement
+	inner := ce + "('dark-stream-marker', null)"
 
 	// Wrap with route layouts (innermost first, iterate in reverse).
 	for i := len(routeLayouts) - 1; i >= 0; i-- {
@@ -360,12 +371,12 @@ func (r *renderer) renderShell(routeLayouts []string, props any) (before string,
 		}
 		varName := fmt.Sprintf("__RL%d", i)
 		fmt.Fprintf(&code, "var %s = globalThis.%s.default || globalThis.%s;\n", varName, entry.globalName, entry.globalName)
-		inner = fmt.Sprintf("preact.h(%s, Object.assign({}, __props, { children: %s }))", varName, inner)
+		inner = fmt.Sprintf("%s(%s, Object.assign({}, __props, { children: %s }))", ce, varName, inner)
 	}
 
 	if r.hasLayout {
 		code.WriteString(layoutResolveJS)
-		inner = fmt.Sprintf("preact.h(__Layout, Object.assign({}, __props, { children: %s }))", inner)
+		inner = fmt.Sprintf("%s(__Layout, Object.assign({}, __props, { children: %s }))", ce, inner)
 	}
 
 	fmt.Fprintf(&code, "__rts(%s);\n", inner)
@@ -444,8 +455,8 @@ func (r *renderer) bundleComponent(filePath string) (string, string, error) {
 		return "", "", fmt.Errorf("dark: failed to resolve path %s: %w", filePath, err)
 	}
 
-	// Base externals for SSR: preact and preact-render-to-string are provided as globals.
-	exactExternals := []string{"preact", "preact-render-to-string"}
+	// Base externals for SSR: UI library packages are provided as globals.
+	exactExternals := append([]string{}, r.uikit.ssrExternals...)
 	if r.hasIslands {
 		exactExternals = append(exactExternals, "dark")
 	}
@@ -460,16 +471,16 @@ func (r *renderer) bundleComponent(filePath string) (string, string, error) {
 		Outdir:      "/", // required for CSS extraction with Write:false
 		Plugins:     []api.Plugin{exactExternalPlugin(exactExternals)},
 		JSX:         api.JSXTransform,
-		JSXFactory:  "h",
-		JSXFragment: "Fragment",
+		JSXFactory:  r.uikit.jsxFactory,
+		JSXFragment: r.uikit.jsxFragment,
 		LogLevel:    api.LogLevelSilent,
 	}
 	if r.devMode {
 		opts.Sourcemap = api.SourceMapInline
 	}
 
-	// When islands are enabled, provide node_modules path so preact/hooks
-	// can be resolved and bundled inline (not externalized).
+	// When islands are enabled, provide node_modules path so library subpaths
+	// (e.g., preact/hooks) can be resolved and bundled inline (not externalized).
 	if r.hasIslands && r.nodeModulesDir != "" {
 		opts.NodePaths = []string{r.nodeModulesDir}
 	}
@@ -521,21 +532,23 @@ func exactExternalPlugin(pkgs []string) api.Plugin {
 
 // buildIslands sets up island support.
 func (r *renderer) buildIslands(islands []islandEntry, cfg *config) error {
-	cacheDir, err := islandCacheDir(cfg.dependencies)
+	deps := append([]string{}, r.uikit.ssrDeps...)
+	deps = append(deps, cfg.extraDeps...)
+	cacheDir, err := islandCacheDir(deps)
 	if err != nil {
 		return fmt.Errorf("dark: failed to create island cache dir: %w", err)
 	}
 
 	nmDir := filepath.Join(cacheDir, "node_modules")
-	if _, err := os.Stat(filepath.Join(nmDir, "preact", "package.json")); err != nil {
-		if err := ramune.InstallNpmPackages([]string{"preact"}, cacheDir); err != nil {
-			return fmt.Errorf("dark: failed to install preact for islands: %w", err)
+	if _, err := os.Stat(filepath.Join(nmDir, r.uikit.clientPkgCheck, "package.json")); err != nil {
+		if err := ramune.InstallNpmPackages(r.uikit.clientPkg, cacheDir); err != nil {
+			return fmt.Errorf("dark: failed to install client packages for islands: %w", err)
 		}
 	}
 
 	r.nodeModulesDir = nmDir
 
-	if err := r.pool.Broadcast(darkModuleJS); err != nil {
+	if err := r.pool.Broadcast(r.uikit.darkModuleJS); err != nil {
 		return fmt.Errorf("dark: failed to broadcast dark module: %w", err)
 	}
 
@@ -566,7 +579,7 @@ func (r *renderer) buildClientBundle(islands []islandEntry, cfg *config, nodeMod
 
 	entryPoints := make([]string, len(islands))
 	for i, isl := range islands {
-		entryCode := buildIslandEntryJS(isl, absTemplateDir, cfg.devMode)
+		entryCode := buildIslandEntryJS(isl, absTemplateDir, r.uikit, cfg.devMode)
 		entryFile := filepath.Join(tmpDir, isl.name+".jsx")
 		if err := os.WriteFile(entryFile, []byte(entryCode), 0o644); err != nil {
 			return fmt.Errorf("dark: failed to write island entry %s: %w", isl.name, err)
@@ -587,8 +600,8 @@ func (r *renderer) buildClientBundle(islands []islandEntry, cfg *config, nodeMod
 		NodePaths:         []string{nodeModulesDir},
 		AbsWorkingDir:     absTemplateDir,
 		JSX:               api.JSXTransform,
-		JSXFactory:        "h",
-		JSXFragment:       "Fragment",
+		JSXFactory:        r.uikit.jsxFactory,
+		JSXFragment:       r.uikit.jsxFragment,
 		MinifySyntax:      !cfg.devMode,
 		MinifyWhitespace:  !cfg.devMode,
 		MinifyIdentifiers: !cfg.devMode,
@@ -694,14 +707,15 @@ func (r *renderer) renderGlobalComponent(globalName string, props any) (string, 
 
 	var code strings.Builder
 	fmt.Fprintf(&code, "var __props = %s;\n", propsJSON)
-	code.WriteString(rtsResolveJS)
+	code.WriteString(r.uikit.rtsResolveJS)
 	fmt.Fprintf(&code, "var __Component = globalThis.%s.default || globalThis.%s;\n", globalName, globalName)
 
+	ce := r.uikit.createElement
 	if r.hasLayout {
 		code.WriteString(layoutResolveJS)
-		code.WriteString("__rts(preact.h(__Layout, Object.assign({}, __props, { children: preact.h(__Component, __props) })));\n")
+		fmt.Fprintf(&code, "__rts(%s(__Layout, Object.assign({}, __props, { children: %s(__Component, __props) })));\n", ce, ce)
 	} else {
-		code.WriteString("__rts(preact.h(__Component, __props));\n")
+		fmt.Fprintf(&code, "__rts(%s(__Component, __props));\n", ce)
 	}
 
 	val, err := r.pool.Eval(code.String())

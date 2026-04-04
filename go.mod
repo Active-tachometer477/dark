@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/evanw/esbuild v0.27.4
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/i2y/ramune v0.5.0
+	github.com/i2y/ramune v0.6.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 )
 

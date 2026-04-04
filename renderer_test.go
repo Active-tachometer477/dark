@@ -196,3 +196,58 @@ func TestRenderSkipLayoutForHtmx(t *testing.T) {
 		t.Fatalf("expected HTML to contain 'Hello World', got: %s", html)
 	}
 }
+
+func TestRenderReactComponent(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.templateDir = "_testdata"
+	cfg.poolSize = 1
+	cfg.uiLibrary = React
+
+	r, err := newRenderer(cfg)
+	if err != nil {
+		t.Fatalf("newRenderer: %v", err)
+	}
+	defer r.close()
+
+	html, _, err := r.render("react_simple.tsx", nil, map[string]any{"name": "React"}, true)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	// React's renderToString may insert <!-- --> comments between text nodes.
+	if !strings.Contains(html, "React") {
+		t.Fatalf("expected HTML to contain 'React', got: %s", html)
+	}
+	if !strings.Contains(html, "<div>") {
+		t.Fatalf("expected HTML to contain '<div>', got: %s", html)
+	}
+}
+
+func TestRenderReactWithLayout(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.templateDir = "_testdata"
+	cfg.layoutFile = "react_layout.tsx"
+	cfg.poolSize = 1
+	cfg.uiLibrary = React
+
+	r, err := newRenderer(cfg)
+	if err != nil {
+		t.Fatalf("newRenderer: %v", err)
+	}
+	defer r.close()
+
+	html, _, err := r.render("react_simple.tsx", nil, map[string]any{"name": "React", "title": "Test Page"}, false)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	if !strings.Contains(html, "<html>") {
+		t.Fatalf("expected HTML to contain '<html>', got: %s", html)
+	}
+	if !strings.Contains(html, "React") {
+		t.Fatalf("expected HTML to contain 'React', got: %s", html)
+	}
+	if !strings.Contains(html, "Test Page") {
+		t.Fatalf("expected HTML to contain 'Test Page', got: %s", html)
+	}
+}

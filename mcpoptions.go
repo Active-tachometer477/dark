@@ -8,6 +8,7 @@ type mcpConfig struct {
 	serverVersion string
 	templateDir   string
 	poolSize      int
+	uiLibrary     UILibrary
 	minify        bool
 	devMode       bool
 }
@@ -38,6 +39,11 @@ func WithMCPPoolSize(n int) MCPOption {
 // WithMCPMinify enables minification of client-side bundles (default: true).
 func WithMCPMinify(enabled bool) MCPOption {
 	return func(c *mcpConfig) { c.minify = enabled }
+}
+
+// WithMCPUILibrary selects the JSX library for MCP App SSR and client bundles.
+func WithMCPUILibrary(lib UILibrary) MCPOption {
+	return func(c *mcpConfig) { c.uiLibrary = lib }
 }
 
 // WithMCPDevMode enables development mode (source maps, no minification, cache invalidation).

@@ -11,38 +11,23 @@ type islandEntry struct {
 	tsxPath string // relative to templateDir
 }
 
-// darkModuleJS is the SSR-side implementation of the 'dark' JS module.
-// It provides the island() function that wraps components with hydration markers.
-const darkModuleJS = `globalThis.dark = {
-  island: function(name, Component, options) {
-    var loadStrategy = (options && options.load) || 'load';
-    return function(props) {
-      return preact.h('dark-island', {
-        'data-name': name,
-        'data-props': JSON.stringify(props),
-        'data-load': loadStrategy
-      }, preact.h(Component, props));
-    };
-  }
-};`
-
 // buildIslandEntryJS generates an ESM entry module for a single island component.
 // Each entry exports a default function that hydrates a <dark-island> element.
 // absTemplateDir is the absolute path to the template directory, used to construct
 // absolute import paths since entry files live in a temp directory.
-func buildIslandEntryJS(island islandEntry, absTemplateDir string, devMode bool) string {
+func buildIslandEntryJS(island islandEntry, absTemplateDir string, kit *uikit, devMode bool) string {
 	absIslandPath := absTemplateDir + "/" + island.tsxPath
 	var sb strings.Builder
-	sb.WriteString("import { h, hydrate } from 'preact';\n")
+	sb.WriteString(kit.islandImport)
 	fmt.Fprintf(&sb, "import __Comp from '%s';\n", absIslandPath)
 	sb.WriteString("var C = __Comp.default || __Comp;\n")
-	sb.WriteString(`export default function(el) {
+	fmt.Fprintf(&sb, `export default function(el) {
   try {
     var props = JSON.parse(el.getAttribute('data-props') || '{}');
-    hydrate(h(C, props), el);
+    %s
     el.setAttribute('data-hydrated', '');
   } catch (err) {
-    console.error('[dark] hydration error for island "' + el.getAttribute('data-name') + '":', err);`)
+    console.error('[dark] hydration error for island "' + el.getAttribute('data-name') + '":', err);`, kit.islandHydrate)
 	if devMode {
 		sb.WriteString(`
     el.innerHTML = '<div style="border:2px solid #e94560;background:#1a1a2e;color:#e94560;padding:12px;font-family:monospace;border-radius:4px;margin:4px 0;">'

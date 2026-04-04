@@ -12,7 +12,8 @@ func main() {
 	app, err := dark.New(
 		dark.WithTemplateDir("views"),
 		dark.WithLayout("layouts/default.tsx"),
-		dark.WithDevMode(true),
+		dark.WithDevMode(true),{{if eq .UILib "react"}}
+		dark.WithUILibrary(dark.React),{{end}}
 	)
 	if err != nil {
 		log.Fatal(err)

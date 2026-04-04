@@ -21,10 +21,10 @@ func main() {
 	switch os.Args[1] {
 	case "new":
 		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "Usage: dark new <project-name>")
+			fmt.Fprintln(os.Stderr, "Usage: dark new <project-name> [--ui react]")
 			os.Exit(1)
 		}
-		cmdNew(os.Args[2])
+		cmdNew(os.Args[2], parseUILib())
 	case "generate", "gen", "g":
 		if len(os.Args) < 4 {
 			fmt.Fprintln(os.Stderr, "Usage: dark generate <route|island> <name>")
@@ -44,10 +44,13 @@ func printUsage() {
 	fmt.Print(`dark - CLI for the dark web framework
 
 Usage:
-  dark new <project-name>          Create a new dark project
-  dark generate route <name>       Generate a page route
-  dark generate island <name>      Generate an island component
-  dark help                        Show this help
+  dark new <project-name> [--ui react]   Create a new dark project
+  dark generate route <name>             Generate a page route
+  dark generate island <name>            Generate an island component
+  dark help                              Show this help
+
+Options:
+  --ui preact|react    UI library (default: preact)
 
 Aliases:
   dark gen route <name>            Short for generate
@@ -59,12 +62,14 @@ type projectData struct {
 	Name          string
 	ModulePath    string
 	ComponentName string
+	UILib         string // "preact" or "react"
 }
 
-func cmdNew(name string) {
+func cmdNew(name, uiLib string) {
 	data := projectData{
 		Name:       name,
 		ModulePath: name,
+		UILib:      uiLib,
 	}
 
 	dirs := []string{
@@ -102,6 +107,7 @@ func cmdGenerate(kind, name string) {
 	data := projectData{
 		Name:          name,
 		ComponentName: toPascalCase(name),
+		UILib:         parseUILib(),
 	}
 
 	switch kind {
@@ -170,6 +176,20 @@ func toPascalCase(s string) string {
 		}
 	}
 	return b.String()
+}
+
+func parseUILib() string {
+	for i := 1; i < len(os.Args)-1; i++ {
+		if os.Args[i] == "--ui" {
+			lib := os.Args[i+1]
+			if lib != "preact" && lib != "react" {
+				fmt.Fprintf(os.Stderr, "Unknown UI library: %s (use 'preact' or 'react')\n", lib)
+				os.Exit(1)
+			}
+			return lib
+		}
+	}
+	return "preact"
 }
 
 func fatal(format string, args ...any) {

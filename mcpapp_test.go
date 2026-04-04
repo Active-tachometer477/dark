@@ -11,7 +11,7 @@ func TestMCPBundlerClientBundle(t *testing.T) {
 	cfg.templateDir = "_testdata"
 	cfg.minify = false
 
-	b, err := newMCPBundler(cfg)
+	b, err := newMCPBundler(cfg, resolveUIKit(Preact))
 	if err != nil {
 		t.Fatalf("newMCPBundler: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestMCPBundlerCache(t *testing.T) {
 	cfg.templateDir = "_testdata"
 	cfg.minify = false
 
-	b, err := newMCPBundler(cfg)
+	b, err := newMCPBundler(cfg, resolveUIKit(Preact))
 	if err != nil {
 		t.Fatalf("newMCPBundler: %v", err)
 	}
@@ -64,9 +64,8 @@ func TestMCPSSRRender(t *testing.T) {
 	cfg.poolSize = 1
 
 	rendCfg := &config{
-		poolSize:     cfg.poolSize,
-		templateDir:  cfg.templateDir,
-		dependencies: []string{"preact", "preact-render-to-string"},
+		poolSize:    cfg.poolSize,
+		templateDir: cfg.templateDir,
 	}
 	r, err := newRenderer(rendCfg)
 	if err != nil {
@@ -158,6 +157,58 @@ func TestMCPAppAddUITool(t *testing.T) {
 	}
 	if entry.resourceURI != "ui://test-server/greet.html" {
 		t.Errorf("expected resourceURI 'ui://test-server/greet.html', got %q", entry.resourceURI)
+	}
+}
+
+func TestMCPBundlerReact(t *testing.T) {
+	cfg := defaultMCPConfig("test", "1.0.0")
+	cfg.templateDir = "_testdata"
+	cfg.minify = false
+	cfg.uiLibrary = React
+
+	b, err := newMCPBundler(cfg, resolveUIKit(React))
+	if err != nil {
+		t.Fatalf("newMCPBundler: %v", err)
+	}
+	defer b.close()
+
+	js, _, err := b.BuildClientBundle("react_simple.tsx")
+	if err != nil {
+		t.Fatalf("BuildClientBundle: %v", err)
+	}
+
+	if js == "" {
+		t.Fatal("client bundle JS is empty")
+	}
+	if !strings.Contains(js, "getElementById") {
+		t.Errorf("expected client bundle to contain getElementById, got (first 500 chars): %s", js[:min(500, len(js))])
+	}
+}
+
+func TestMCPSSRRenderReact(t *testing.T) {
+	cfg := defaultMCPConfig("test", "1.0.0")
+	cfg.templateDir = "_testdata"
+	cfg.poolSize = 1
+	cfg.uiLibrary = React
+
+	rendCfg := &config{
+		poolSize:    cfg.poolSize,
+		templateDir: cfg.templateDir,
+		uiLibrary:   React,
+	}
+	r, err := newRenderer(rendCfg)
+	if err != nil {
+		t.Fatalf("newRenderer: %v", err)
+	}
+	defer r.close()
+
+	html, _, err := r.render("react_simple.tsx", nil, map[string]any{"name": "MCP"}, true)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	if !strings.Contains(html, "MCP") {
+		t.Fatalf("expected 'MCP' in output, got: %s", html)
 	}
 }
 
