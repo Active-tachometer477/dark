@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -212,16 +211,3 @@ func mcpErrorResult(format string, args ...any) (*mcp.CallToolResult, any, error
 	}, nil, nil
 }
 
-func joinCSS(parts ...string) string {
-	var b strings.Builder
-	for _, p := range parts {
-		if p == "" {
-			continue
-		}
-		if b.Len() > 0 {
-			b.WriteByte('\n')
-		}
-		b.WriteString(p)
-	}
-	return b.String()
-}

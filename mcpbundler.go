@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/pkg/api"
-	"github.com/i2y/ramune"
 )
 
 // mcpBundler bundles TSX components into self-contained client-side JS
@@ -32,7 +31,7 @@ type mcpBundleEntry struct {
 
 // newMCPBundler creates a bundler and ensures the UI library is installed.
 func newMCPBundler(cfg *mcpConfig, kit *uikit) (*mcpBundler, error) {
-	nmDir, err := ensureMCPClientInstalled(kit)
+	nmDir, err := ensureNpmDeps([]string{"mcp"}, kit.clientPkg, kit.clientPkgCheck)
 	if err != nil {
 		return nil, fmt.Errorf("dark: failed to install client packages for MCP: %w", err)
 	}
@@ -44,34 +43,6 @@ func newMCPBundler(cfg *mcpConfig, kit *uikit) (*mcpBundler, error) {
 		devMode:        cfg.devMode,
 		cache:          make(map[string]*mcpBundleEntry),
 	}, nil
-}
-
-// ensureMCPClientInstalled installs the UI library into a deterministic cache dir.
-// Each UI library gets its own subdirectory to avoid conflicts.
-func ensureMCPClientInstalled(kit *uikit) (string, error) {
-	cacheDir, err := mcpCacheDir(kit.clientPkgCheck)
-	if err != nil {
-		return "", err
-	}
-	nmDir := filepath.Join(cacheDir, "node_modules")
-	if _, err := os.Stat(filepath.Join(nmDir, kit.clientPkgCheck, "package.json")); err != nil {
-		if err := ramune.InstallNpmPackages(kit.clientPkg, cacheDir); err != nil {
-			return "", err
-		}
-	}
-	return nmDir, nil
-}
-
-func mcpCacheDir(libName string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(home, ".cache", "dark", "mcp", libName)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	return dir, nil
 }
 
 // BuildClientBundle bundles a TSX component into client-side JS with the

@@ -108,17 +108,10 @@ func newRenderer(cfg *config) (*renderer, error) {
 
 	// Install SSR deps into a cache directory so esbuild can resolve
 	// subpath imports like preact/hooks.
-	cacheDir, err := depsCacheDir(deps)
+	nmDir, err := ensureNpmDeps([]string{"deps"}, deps, kit.clientPkgCheck)
 	if err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("dark: failed to create deps cache dir: %w", err)
-	}
-	nmDir := filepath.Join(cacheDir, "node_modules")
-	if _, err := os.Stat(filepath.Join(nmDir, kit.clientPkgCheck, "package.json")); err != nil {
-		if err := ramune.InstallNpmPackages(kit.ssrDeps, cacheDir); err != nil {
-			pool.Close()
-			return nil, fmt.Errorf("dark: failed to install SSR packages: %w", err)
-		}
+		return nil, fmt.Errorf("dark: failed to install SSR packages: %w", err)
 	}
 
 	r := &renderer{
@@ -654,12 +647,13 @@ func (r *renderer) parseMetafile(metafile string, entryBaseToName map[string]str
 	return manifest, nil
 }
 
-// depsCacheDir returns a deterministic cache directory for npm dependencies.
-func depsCacheDir(dependencies []string) (string, error) {
+// ensureNpmDeps installs npm packages into a deterministic cache directory
+// (keyed by the sorted package list) and returns the node_modules path.
+// Skips installation if checkPkg is already present.
+func ensureNpmDeps(subdirs []string, pkgs []string, checkPkg string) (string, error) {
 	h := sha256.New()
-	fmt.Fprintf(h, "dark-deps\n")
-	for _, d := range dependencies {
-		fmt.Fprintf(h, "%s\n", d)
+	for _, p := range pkgs {
+		fmt.Fprintf(h, "%s\n", p)
 	}
 	hash := hex.EncodeToString(h.Sum(nil))[:12]
 
@@ -667,11 +661,20 @@ func depsCacheDir(dependencies []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, ".cache", "dark", "deps", hash)
+	segments := append([]string{home, ".cache", "dark"}, subdirs...)
+	segments = append(segments, hash)
+	dir := filepath.Join(segments...)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	return dir, nil
+
+	nmDir := filepath.Join(dir, "node_modules")
+	if _, err := os.Stat(filepath.Join(nmDir, checkPkg, "package.json")); err != nil {
+		if err := ramune.InstallNpmPackages(pkgs, dir); err != nil {
+			return "", err
+		}
+	}
+	return nmDir, nil
 }
 
 func (r *renderer) injectIslandsScript(html string) string {

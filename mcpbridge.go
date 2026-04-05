@@ -93,13 +93,14 @@ window.__dark_bridge={
 };
 
 function _autoResize(){
-  var _last=0;
+  var _last=0,_raf=0;
   function notify(){
     var h=document.documentElement.scrollHeight||document.body.scrollHeight;
     if(h&&h!==_last){_last=h;send({jsonrpc:'2.0',method:'ui/notifications/size-changed',params:{height:h}});}
   }
-  new MutationObserver(notify).observe(document.body,{childList:true,subtree:true,attributes:true});
-  new ResizeObserver(notify).observe(document.body);
+  function schedule(){if(!_raf)_raf=requestAnimationFrame(function(){_raf=0;notify();});}
+  new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});
+  new ResizeObserver(schedule).observe(document.body);
   notify();
 }
 })();`
