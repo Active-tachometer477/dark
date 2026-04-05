@@ -106,15 +106,31 @@ func newRenderer(cfg *config) (*renderer, error) {
 		return nil, fmt.Errorf("dark: failed to create runtime pool: %w", err)
 	}
 
+	// Install SSR deps into a cache directory so esbuild can resolve
+	// subpath imports like preact/hooks.
+	cacheDir, err := depsCacheDir(deps)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("dark: failed to create deps cache dir: %w", err)
+	}
+	nmDir := filepath.Join(cacheDir, "node_modules")
+	if _, err := os.Stat(filepath.Join(nmDir, kit.clientPkgCheck, "package.json")); err != nil {
+		if err := ramune.InstallNpmPackages(kit.ssrDeps, cacheDir); err != nil {
+			pool.Close()
+			return nil, fmt.Errorf("dark: failed to install SSR packages: %w", err)
+		}
+	}
+
 	r := &renderer{
-		pool:         pool,
-		uikit:        kit,
-		templateDir:  cfg.templateDir,
-		devMode:      cfg.devMode,
-		cache:        make(map[string]*cacheEntry),
-		pageCSS:      make(map[string]string),
-		routeLayouts: make(map[string]*layoutEntry),
-		ssrCache:     newLRUCache[ssrCacheEntry](cfg.ssrCacheSize),
+		pool:           pool,
+		uikit:          kit,
+		templateDir:    cfg.templateDir,
+		devMode:        cfg.devMode,
+		nodeModulesDir: nmDir,
+		cache:          make(map[string]*cacheEntry),
+		pageCSS:        make(map[string]string),
+		routeLayouts:   make(map[string]*layoutEntry),
+		ssrCache:       newLRUCache[ssrCacheEntry](cfg.ssrCacheSize),
 	}
 
 	// Broadcast require shim to all workers.
@@ -479,9 +495,9 @@ func (r *renderer) bundleComponent(filePath string) (string, string, error) {
 		opts.Sourcemap = api.SourceMapInline
 	}
 
-	// When islands are enabled, provide node_modules path so library subpaths
-	// (e.g., preact/hooks) can be resolved and bundled inline (not externalized).
-	if r.hasIslands && r.nodeModulesDir != "" {
+	// Provide node_modules path so library subpaths (e.g., preact/hooks)
+	// can be resolved and bundled inline (not externalized).
+	if r.nodeModulesDir != "" {
 		opts.NodePaths = []string{r.nodeModulesDir}
 	}
 
@@ -532,29 +548,13 @@ func exactExternalPlugin(pkgs []string) api.Plugin {
 
 // buildIslands sets up island support.
 func (r *renderer) buildIslands(islands []islandEntry, cfg *config) error {
-	deps := append([]string{}, r.uikit.ssrDeps...)
-	deps = append(deps, cfg.extraDeps...)
-	cacheDir, err := islandCacheDir(deps)
-	if err != nil {
-		return fmt.Errorf("dark: failed to create island cache dir: %w", err)
-	}
-
-	nmDir := filepath.Join(cacheDir, "node_modules")
-	if _, err := os.Stat(filepath.Join(nmDir, r.uikit.clientPkgCheck, "package.json")); err != nil {
-		if err := ramune.InstallNpmPackages(r.uikit.clientPkg, cacheDir); err != nil {
-			return fmt.Errorf("dark: failed to install client packages for islands: %w", err)
-		}
-	}
-
-	r.nodeModulesDir = nmDir
-
 	if err := r.pool.Broadcast(r.uikit.darkModuleJS); err != nil {
 		return fmt.Errorf("dark: failed to broadcast dark module: %w", err)
 	}
 
 	r.hasIslands = true
 
-	if err := r.buildClientBundle(islands, cfg, nmDir); err != nil {
+	if err := r.buildClientBundle(islands, cfg, r.nodeModulesDir); err != nil {
 		return fmt.Errorf("dark: failed to build client bundle: %w", err)
 	}
 
@@ -654,10 +654,10 @@ func (r *renderer) parseMetafile(metafile string, entryBaseToName map[string]str
 	return manifest, nil
 }
 
-// islandCacheDir returns a deterministic cache directory for island assets.
-func islandCacheDir(dependencies []string) (string, error) {
+// depsCacheDir returns a deterministic cache directory for npm dependencies.
+func depsCacheDir(dependencies []string) (string, error) {
 	h := sha256.New()
-	fmt.Fprintf(h, "dark-islands\n")
+	fmt.Fprintf(h, "dark-deps\n")
 	for _, d := range dependencies {
 		fmt.Fprintf(h, "%s\n", d)
 	}
@@ -667,7 +667,7 @@ func islandCacheDir(dependencies []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, ".cache", "dark", "islands", hash)
+	dir := filepath.Join(home, ".cache", "dark", "deps", hash)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}

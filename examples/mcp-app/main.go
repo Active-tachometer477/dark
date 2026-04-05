@@ -23,7 +23,6 @@ func main() {
 
 	mcpApp, err := dark.NewMCPApp("analytics-server", "1.0.0",
 		dark.WithMCPTemplateDir("views"),
-		dark.WithMCPPoolSize(2),
 	)
 	if err != nil {
 		log.Fatal(err)

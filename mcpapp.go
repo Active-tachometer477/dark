@@ -13,15 +13,14 @@ import (
 
 const mcpAppMIMEType = "text/html;profile=mcp-app"
 
-// MCPApp is an MCP server that uses dark's SSR + esbuild toolchain to render
+// MCPApp is an MCP server that uses dark's esbuild toolchain to bundle
 // TSX components as self-contained MCP App UIs.
 type MCPApp struct {
-	server   *mcp.Server
-	renderer *renderer
-	bundler  *mcpBundler
-	config   *mcpConfig
-	tools    map[string]*mcpToolEntry
-	mu       sync.RWMutex
+	server  *mcp.Server
+	bundler *mcpBundler
+	config  *mcpConfig
+	tools   map[string]*mcpToolEntry
+	mu      sync.RWMutex
 }
 
 type mcpToolEntry struct {
@@ -45,41 +44,33 @@ func NewMCPApp(name, version string, opts ...MCPOption) (*MCPApp, error) {
 
 	kit := resolveUIKit(cfg.uiLibrary)
 
-	rendCfg := &config{
-		poolSize:    cfg.poolSize,
-		templateDir: cfg.templateDir,
-		uiLibrary:   cfg.uiLibrary,
-		devMode:     cfg.devMode,
-	}
-	rend, err := newRenderer(rendCfg)
-	if err != nil {
-		return nil, fmt.Errorf("dark: failed to create MCP renderer: %w", err)
-	}
-
 	bundler, err := newMCPBundler(cfg, kit)
 	if err != nil {
-		rend.close()
 		return nil, fmt.Errorf("dark: failed to create MCP bundler: %w", err)
 	}
+
+	caps := &mcp.ServerCapabilities{}
+	caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{})
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    name,
 		Version: version,
-	}, nil)
+	}, &mcp.ServerOptions{
+		Capabilities: caps,
+	})
 
 	return &MCPApp{
-		server:   server,
-		renderer: rend,
-		bundler:  bundler,
-		config:   cfg,
-		tools:    make(map[string]*mcpToolEntry),
+		server:  server,
+		bundler: bundler,
+		config:  cfg,
+		tools:   make(map[string]*mcpToolEntry),
 	}, nil
 }
 
 // Close releases all resources held by the MCP application.
 func (m *MCPApp) Close() error {
 	m.bundler.close()
-	return m.renderer.close()
+	return nil
 }
 
 // Server returns the underlying mcp.Server for advanced configuration
@@ -104,8 +95,10 @@ func (m *MCPApp) StreamableHTTPHandler() http.Handler {
 
 // AddUITool registers an MCP tool that returns an interactive TSX-based UI.
 // The handler receives typed args and returns props for the TSX component.
-// dark SSR-renders the component, then assembles a self-contained HTML with
-// hydration support and returns it as an inline resource in the tool result.
+// dark bundles the component into a self-contained HTML resource and registers
+// it with the MCP server. Tool results contain the props as JSON text, and
+// the host renders the resource HTML in an iframe that receives the data
+// via the MCP Apps postMessage protocol.
 //
 // AddUITool is a package-level function (not a method) because Go does not
 // support generic methods.
@@ -117,6 +110,8 @@ func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(c
 		return fmt.Errorf("dark: failed to build MCP client bundle for %s: %w", def.Component, err)
 	}
 
+	html := assembleMCPAppHTML(clientCSS, clientJS)
+
 	app.mu.Lock()
 	app.tools[name] = &mcpToolEntry{
 		component:   def.Component,
@@ -124,9 +119,38 @@ func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(c
 	}
 	app.mu.Unlock()
 
+	// Register the HTML resource for this tool's UI.
+	app.server.AddResource(
+		&mcp.Resource{
+			URI:      resourceURI,
+			Name:     name,
+			MIMEType: mcpAppMIMEType,
+		},
+		func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			resHTML := html
+			if app.config.devMode {
+				if freshJS, freshCSS, err := app.bundler.BuildClientBundle(def.Component); err == nil {
+					resHTML = assembleMCPAppHTML(freshCSS, freshJS)
+				}
+			}
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{{
+					URI:      resourceURI,
+					MIMEType: mcpAppMIMEType,
+					Text:     resHTML,
+				}},
+			}, nil
+		},
+	)
+
+	// Register the tool with _meta.ui linking to the resource.
 	tool := &mcp.Tool{
 		Name:        name,
 		Description: def.Description,
+		Meta: mcp.Meta{
+			"ui":             map[string]any{"resourceUri": resourceURI},
+			"ui/resourceUri": resourceURI,
+		},
 	}
 	if def.Title != "" {
 		tool.Title = def.Title
@@ -147,32 +171,9 @@ func AddUITool[Args any](app *MCPApp, name string, def UIToolDef, handler func(c
 				return mcpErrorResult("props marshal error: %v", err)
 			}
 
-			ssrHTML, ssrCSS, err := app.renderer.render(def.Component, nil, props, true)
-			if err != nil {
-				return mcpErrorResult("SSR render error: %v", err)
-			}
-
-			js := clientJS
-			cCSS := clientCSS
-			if app.config.devMode {
-				if freshJS, freshCSS, err := app.bundler.BuildClientBundle(def.Component); err == nil {
-					js = freshJS
-					cCSS = freshCSS
-				}
-			}
-
-			html := assembleMCPHTML(ssrHTML, joinCSS(ssrCSS, cCSS), propsJSON, js)
-
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
 					&mcp.TextContent{Text: string(propsJSON)},
-					&mcp.EmbeddedResource{
-						Resource: &mcp.ResourceContents{
-							URI:      resourceURI,
-							MIMEType: mcpAppMIMEType,
-							Text:     html,
-						},
-					},
 				},
 			}, nil, nil
 		},

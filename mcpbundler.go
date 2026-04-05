@@ -163,24 +163,22 @@ func (b *mcpBundler) buildClientBundle(absComponentPath string) (string, string,
 }
 
 // buildMCPClientEntryJS generates the client-side entry module for an MCP App.
-// It imports the UI library + the component, hydrates SSR'd HTML, and listens
-// for tool result updates via the app bridge.
+// It imports the UI library + the component, then renders on tool result
+// notifications received via the app bridge (client-side rendering, no SSR).
 func buildMCPClientEntryJS(absComponentPath string, kit *uikit) string {
 	var sb strings.Builder
 	sb.WriteString(kit.mcpImport)
 	fmt.Fprintf(&sb, "import __Comp from '%s';\n", absComponentPath)
 	sb.WriteString("var C = __Comp.default || __Comp;\n")
 	fmt.Fprintf(&sb, `var app = document.getElementById('app');
-var props = window.__dark_mcp_props || {};
-
-%s
 
 __dark_bridge.onToolResult(function(result) {
   if (result && result.content) {
     for (var i = 0; i < result.content.length; i++) {
-      if (result.content[i].text) {
+      var c = result.content[i];
+      if (c.type === 'text' && c.text) {
         try {
-          props = JSON.parse(result.content[i].text);
+          var props = JSON.parse(c.text);
           %s
         } catch(e) {}
       }
@@ -189,7 +187,7 @@ __dark_bridge.onToolResult(function(result) {
 });
 
 __dark_bridge.ready();
-`, kit.mcpHydrate, kit.mcpRender)
+`, kit.mcpRender)
 	return sb.String()
 }
 

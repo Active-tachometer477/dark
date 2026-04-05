@@ -6,7 +6,7 @@ import "strings"
 const mcpBaseCSS = `*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:var(--mcp-ui-font-family,system-ui,-apple-system,sans-serif);background:var(--mcp-ui-bg-primary,#fff);color:var(--mcp-ui-text-primary,#000)}`
 
 // mcpAppBridgeJS is the MCP App Bridge: handles postMessage JSON-RPC 2.0
-// communication with the host application.
+// communication with the host application following the MCP Apps protocol.
 const mcpAppBridgeJS = `(function(){'use strict';
 var _rid=0,_pending={},_onToolResult=null,_onThemeChange=null,_ctx=null;
 
@@ -35,7 +35,14 @@ window.addEventListener('message',function(ev){
   }else if(m.method==='ui/notifications/host-context-changed'){
     if(m.params){
       if(_ctx)Object.assign(_ctx,m.params);
-      if(m.params.theme&&_onThemeChange)_onThemeChange(m.params.theme);
+      if(m.params.styles&&m.params.styles.variables){
+        var v=m.params.styles.variables;
+        for(var k in v)document.documentElement.style.setProperty(k,v[k]);
+      }
+      if(m.params.theme){
+        document.documentElement.setAttribute('data-theme',m.params.theme);
+        if(_onThemeChange)_onThemeChange(m.params.theme);
+      }
     }
   }
 });
@@ -43,16 +50,26 @@ window.addEventListener('message',function(ev){
 window.__dark_bridge={
   ready:function(){
     request('ui/initialize',{
-      protocolVersion:'2025-03-26',
-      capabilities:{},
-      clientInfo:{name:'dark-mcp-app',version:'1.0.0'}
+      protocolVersion:'2026-01-26',
+      appCapabilities:{},
+      appInfo:{name:'dark-mcp-app',version:'1.0.0'}
     }).then(function(r){
       _ctx=r.hostContext||{};
-      if(r.styleVariables){
-        var v=r.styleVariables;
+      if(_ctx.styles&&_ctx.styles.variables){
+        var v=_ctx.styles.variables;
         for(var k in v)document.documentElement.style.setProperty(k,v[k]);
       }
-      if(_ctx.theme&&_onThemeChange)_onThemeChange(_ctx.theme);
+      if(_ctx.styles&&_ctx.styles.css&&_ctx.styles.css.fonts){
+        var s=document.createElement('style');
+        s.textContent=_ctx.styles.css.fonts;
+        document.head.appendChild(s);
+      }
+      if(_ctx.theme){
+        document.documentElement.setAttribute('data-theme',_ctx.theme);
+        if(_onThemeChange)_onThemeChange(_ctx.theme);
+      }
+      send({jsonrpc:'2.0',method:'ui/notifications/initialized'});
+      _autoResize();
     }).catch(function(){});
   },
   callServerTool:function(name,args){
@@ -74,15 +91,28 @@ window.__dark_bridge={
   onThemeChange:function(fn){_onThemeChange=fn;},
   getHostContext:function(){return _ctx;}
 };
+
+function _autoResize(){
+  var _last=0;
+  function notify(){
+    var h=document.documentElement.scrollHeight||document.body.scrollHeight;
+    if(h&&h!==_last){_last=h;send({jsonrpc:'2.0',method:'ui/notifications/size-changed',params:{height:h}});}
+  }
+  new MutationObserver(notify).observe(document.body,{childList:true,subtree:true,attributes:true});
+  new ResizeObserver(notify).observe(document.body);
+  notify();
+}
 })();`
 
-// assembleMCPHTML builds a self-contained HTML document for an MCP App.
-func assembleMCPHTML(ssrHTML, css string, propsJSON []byte, clientJS string) string {
+// assembleMCPAppHTML builds a self-contained HTML document for an MCP App.
+// The HTML is a static app shell — data arrives via postMessage from the host.
+func assembleMCPAppHTML(css string, clientJS string) string {
 	var b strings.Builder
-	b.Grow(len(ssrHTML) + len(css) + len(clientJS) + len(mcpAppBridgeJS) + len(propsJSON) + 512)
+	b.Grow(len(css) + len(clientJS) + len(mcpAppBridgeJS) + 512)
 
 	b.WriteString("<!DOCTYPE html><html><head><meta charset=\"UTF-8\">")
 	b.WriteString("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0\">")
+	b.WriteString("<meta name=\"color-scheme\" content=\"light dark\">")
 	b.WriteString("<style>")
 	b.WriteString(mcpBaseCSS)
 	b.WriteString("</style>")
@@ -93,19 +123,13 @@ func assembleMCPHTML(ssrHTML, css string, propsJSON []byte, clientJS string) str
 	}
 	b.WriteString("</head><body>")
 
-	b.WriteString("<div id=\"app\">")
-	b.WriteString(ssrHTML)
-	b.WriteString("</div>")
+	b.WriteString("<div id=\"app\"></div>")
 
-	b.WriteString("<script>window.__dark_mcp_props=")
-	b.Write(propsJSON)
-	b.WriteString(";</script>")
-
-	b.WriteString("<script>")
+	b.WriteString("<script type=\"module\">")
 	b.WriteString(mcpAppBridgeJS)
 	b.WriteString("</script>")
 
-	b.WriteString("<script>")
+	b.WriteString("<script type=\"module\">")
 	b.WriteString(clientJS)
 	b.WriteString("</script>")
 

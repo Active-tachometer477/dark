@@ -59,13 +59,9 @@ func TestMCPBundlerCache(t *testing.T) {
 }
 
 func TestMCPSSRRender(t *testing.T) {
-	cfg := defaultMCPConfig("test", "1.0.0")
-	cfg.templateDir = "_testdata"
-	cfg.poolSize = 1
-
 	rendCfg := &config{
-		poolSize:    cfg.poolSize,
-		templateDir: cfg.templateDir,
+		poolSize:    1,
+		templateDir: "_testdata",
 	}
 	r, err := newRenderer(rendCfg)
 	if err != nil {
@@ -84,20 +80,18 @@ func TestMCPSSRRender(t *testing.T) {
 }
 
 func TestMCPAssembleHTML(t *testing.T) {
-	propsJSON := []byte(`{"name":"Test"}`)
-	html := assembleMCPHTML("<div>Hello Test</div>", "body{color:red}", propsJSON, "console.log('client')")
+	html := assembleMCPAppHTML("body{color:red}", "console.log('client')")
 
 	checks := []struct {
 		name    string
 		content string
 	}{
 		{"doctype", "<!DOCTYPE html>"},
-		{"ssr html", "Hello Test"},
 		{"css", "body{color:red}"},
-		{"props", `"name":"Test"`},
 		{"bridge", "__dark_bridge"},
 		{"client js", "console.log('client')"},
 		{"app div", `<div id="app">`},
+		{"color-scheme", `color-scheme`},
 	}
 	for _, c := range checks {
 		if !strings.Contains(html, c.content) {
@@ -109,7 +103,6 @@ func TestMCPAssembleHTML(t *testing.T) {
 func TestMCPAppNewAndClose(t *testing.T) {
 	app, err := NewMCPApp("test-server", "1.0.0",
 		WithMCPTemplateDir("_testdata"),
-		WithMCPPoolSize(1),
 		WithMCPMinify(false),
 	)
 	if err != nil {
@@ -123,7 +116,6 @@ func TestMCPAppNewAndClose(t *testing.T) {
 func TestMCPAppAddUITool(t *testing.T) {
 	app, err := NewMCPApp("test-server", "1.0.0",
 		WithMCPTemplateDir("_testdata"),
-		WithMCPPoolSize(1),
 		WithMCPMinify(false),
 	)
 	if err != nil {
@@ -186,14 +178,9 @@ func TestMCPBundlerReact(t *testing.T) {
 }
 
 func TestMCPSSRRenderReact(t *testing.T) {
-	cfg := defaultMCPConfig("test", "1.0.0")
-	cfg.templateDir = "_testdata"
-	cfg.poolSize = 1
-	cfg.uiLibrary = React
-
 	rendCfg := &config{
-		poolSize:    cfg.poolSize,
-		templateDir: cfg.templateDir,
+		poolSize:    1,
+		templateDir: "_testdata",
 		uiLibrary:   React,
 	}
 	r, err := newRenderer(rendCfg)
@@ -215,7 +202,6 @@ func TestMCPSSRRenderReact(t *testing.T) {
 func TestMCPAppAddTextTool(t *testing.T) {
 	app, err := NewMCPApp("test-server", "1.0.0",
 		WithMCPTemplateDir("_testdata"),
-		WithMCPPoolSize(1),
 	)
 	if err != nil {
 		t.Fatalf("NewMCPApp: %v", err)
@@ -236,7 +222,6 @@ func TestMCPAppAddTextTool(t *testing.T) {
 func TestMCPAppDashboardRoundTrip(t *testing.T) {
 	app, err := NewMCPApp("test-server", "1.0.0",
 		WithMCPTemplateDir("_testdata"),
-		WithMCPPoolSize(1),
 		WithMCPMinify(false),
 	)
 	if err != nil {
