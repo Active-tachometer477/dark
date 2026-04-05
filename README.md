@@ -595,13 +595,13 @@ mcpApp.RunStdio(ctx)           // stdio transport
 mcpApp.StreamableHTTPHandler() // HTTP transport
 ```
 
-UI tools produce self-contained HTML through the following pipeline:
+The server declares the `io.modelcontextprotocol/ui` extension and registers each UI tool as a resource (`ui://{server}/{tool}.html`). Rendering pipeline:
 
-1. Go handler returns props
-2. Preact SSR via ramune pool → initial HTML (instant display)
-3. esbuild bundles the client (Preact inlined, cached)
-4. SSR HTML + props + App Bridge + hydration JS assembled into a single HTML
-5. Returned as an inline resource in the MCP tool result, rendered in the host iframe
+1. At registration: esbuild bundles the component with UI library inlined → static app shell HTML
+2. On tool call: Go handler returns props → sent as JSON text in the tool result
+3. Host reads the resource → renders the HTML in a sandboxed iframe
+4. MCP App Bridge (postMessage JSON-RPC, protocol `2026-01-26`) delivers tool results to the iframe
+5. Component renders client-side with the received props
 
 Example: [`examples/mcp-app/`](examples/mcp-app/)
 
@@ -611,7 +611,7 @@ Example: [`examples/mcp-app/`](examples/mcp-app/)
 - **[showcase](_examples/showcase/)** — CSRF, concurrent loaders, SSR cache + ETag, SSG, Context.Set/Get
 - **[database](_examples/database/)** — SQLite CRUD with sessions and authentication
 - **[deploy](_examples/deploy/)** — production setup with Dockerfile and Fly.io config
-- **[mcp-app](examples/mcp-app/)** — MCP Apps: interactive UI tools with SSR + hydration
+- **[mcp-app](examples/mcp-app/)** — MCP Apps: interactive UI tools via postMessage
 
 ## Deploy
 
