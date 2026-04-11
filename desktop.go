@@ -62,14 +62,13 @@ func Desktop(app *App, opts DesktopOptions) error {
 
 	handler, err := app.Handler()
 	if err != nil {
-		return fmt.Errorf("dark.Desktop: %w", err)
+		return fmt.Errorf("dark: desktop: %w", err)
 	}
 
 	ln, err := net.Listen("tcp", opts.Addr)
 	if err != nil {
-		return fmt.Errorf("dark.Desktop: listen %s: %w", opts.Addr, err)
+		return fmt.Errorf("dark: desktop: listen %s: %w", opts.Addr, err)
 	}
-	defer ln.Close()
 
 	port := ln.Addr().(*net.TCPAddr).Port
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -84,7 +83,7 @@ func Desktop(app *App, opts DesktopOptions) error {
 
 	wv, err := glaze.New(opts.Debug)
 	if err != nil {
-		return fmt.Errorf("dark.Desktop: webview: %w", err)
+		return fmt.Errorf("dark: desktop: webview: %w", err)
 	}
 
 	wv.SetTitle(opts.Title)
