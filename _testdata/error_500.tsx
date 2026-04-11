@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function Error500({ message, statusCode }: any) {
   return (
     <div class="error-page">

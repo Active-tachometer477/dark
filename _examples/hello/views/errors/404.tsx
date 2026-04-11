@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function Error404({ path, statusCode }: any) {
   return (
     <div style="text-align: center; padding: 4rem 2rem;">

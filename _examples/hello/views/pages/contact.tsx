@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import './style.css';
 
 export default function ContactPage({ _errors, _formData, success }: any) {

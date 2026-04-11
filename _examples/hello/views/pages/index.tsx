@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import { island } from 'dark';
 import Counter from '../islands/counter.tsx';
 import './style.css';

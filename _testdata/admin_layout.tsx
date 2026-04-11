@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function AdminLayout({ children, title }: any) {
   return (
     <div class="admin-layout">

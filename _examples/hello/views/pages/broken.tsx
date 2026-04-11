@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function BrokenPage({ items }: any) {
   // This will throw a TypeError because items is null
   const count = items.length;

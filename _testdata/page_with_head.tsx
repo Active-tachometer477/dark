@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function PageWithHead({ post, _head }: any) {
   return (
     <div>

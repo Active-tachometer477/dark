@@ -1,8 +1,11 @@
 package dark
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestRenderSimpleComponent(t *testing.T) {
@@ -249,5 +252,29 @@ func TestRenderReactWithLayout(t *testing.T) {
 	}
 	if !strings.Contains(html, "Test Page") {
 		t.Fatalf("expected HTML to contain 'Test Page', got: %s", html)
+	}
+}
+
+func TestExtractFS(t *testing.T) {
+	mapFS := fstest.MapFS{
+		"pages/index.tsx":       {Data: []byte(`export default function() { return "hi"; }`)},
+		"layouts/default.tsx":   {Data: []byte(`export default function({ children }) { return children; }`)},
+		"pages/nested/deep.tsx": {Data: []byte(`export default function() { return "deep"; }`)},
+	}
+
+	destDir := t.TempDir()
+	if err := extractFS(mapFS, destDir); err != nil {
+		t.Fatalf("extractFS: %v", err)
+	}
+
+	// Verify files exist with correct content.
+	for path, file := range mapFS {
+		data, err := os.ReadFile(filepath.Join(destDir, path))
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if string(data) != string(file.Data) {
+			t.Fatalf("%s: got %q, want %q", path, data, file.Data)
+		}
 	}
 }

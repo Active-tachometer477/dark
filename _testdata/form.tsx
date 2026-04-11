@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function Form({ _errors, _formData, items }: any) {
   const nameErr = _errors?.find((e: any) => e.field === 'name');
   const emailErr = _errors?.find((e: any) => e.field === 'email');

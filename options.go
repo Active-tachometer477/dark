@@ -1,6 +1,7 @@
 package dark
 
 import (
+	"io/fs"
 	"log/slog"
 	"runtime"
 )
@@ -8,6 +9,7 @@ import (
 type config struct {
 	poolSize          int
 	templateDir       string
+	viewsFS           fs.FS // optional: embedded filesystem for views
 	layoutFile        string
 	uiLibrary         UILibrary
 	extraDeps         []string // additional npm dependencies beyond UI library
@@ -89,4 +91,17 @@ func WithSSRCache(maxEntries int) Option {
 // Defaults to slog.Default().
 func WithLogger(logger *slog.Logger) Option {
 	return func(c *config) { c.logger = logger }
+}
+
+// WithViewsFS sets an fs.FS as the source for TSX view files.
+// Files are extracted to a temporary directory for esbuild at startup
+// and cleaned up on Close(). This takes precedence over WithTemplateDir.
+// Use fs.Sub to strip the embed prefix if needed:
+//
+//	//go:embed views
+//	var viewsFS embed.FS
+//	sub, _ := fs.Sub(viewsFS, "views")
+//	app, _ := dark.New(dark.WithViewsFS(sub))
+func WithViewsFS(fsys fs.FS) Option {
+	return func(c *config) { c.viewsFS = fsys }
 }

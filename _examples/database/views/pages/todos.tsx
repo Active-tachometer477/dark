@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function Todos({ todos, user, flashes, _errors, _formData }: any) {
   const errors = _errors || [];
   const fieldError = (name: string) => errors.find((e: any) => e.field === name);

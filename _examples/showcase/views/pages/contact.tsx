@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 // Demonstrates: CSRF protection with htmx
 //
 // The CSRF middleware auto-injects:

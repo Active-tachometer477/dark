@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,7 +34,8 @@ type registeredRoute struct {
 
 type staticDir struct {
 	prefix string
-	dir    string
+	dir    string // disk directory (mutually exclusive with fsys)
+	fsys   fs.FS  // embedded/virtual filesystem
 }
 
 // New creates a new dark application.
@@ -124,6 +126,15 @@ func (app *App) Static(urlPrefix, dir string) {
 	app.staticDirs = append(app.staticDirs, staticDir{prefix: urlPrefix, dir: dir})
 }
 
+// StaticFS registers a static file server backed by an fs.FS for the given URL prefix.
+// This supports embed.FS, os.DirFS, and any fs.FS implementation.
+func (app *App) StaticFS(urlPrefix string, fsys fs.FS) {
+	if !strings.HasSuffix(urlPrefix, "/") {
+		urlPrefix += "/"
+	}
+	app.staticDirs = append(app.staticDirs, staticDir{prefix: urlPrefix, fsys: fsys})
+}
+
 // Island registers a component for client-side hydration.
 func (app *App) Island(name, tsxPath string) {
 	app.islands = append(app.islands, islandEntry{name: name, tsxPath: tsxPath})
@@ -156,15 +167,15 @@ func (app *App) buildHandler() (http.Handler, error) {
 		return nil, fmt.Errorf("dark: failed to prepare route layouts: %w", err)
 	}
 
-	// Generate TypeScript types from Props fields (dev mode only).
-	if app.config.devMode {
+	// Generate TypeScript types from Props fields (dev mode only, disk views only).
+	if app.config.devMode && app.config.viewsFS == nil {
 		if err := app.GenerateTypes(); err != nil {
 			app.config.logger.Warn("type generation failed", "error", err)
 		}
 	}
 
-	// Start dev reloader if in dev mode.
-	if app.config.devMode && app.reloader == nil {
+	// Start dev reloader if in dev mode (skip for embedded views — files are immutable).
+	if app.config.devMode && app.reloader == nil && app.config.viewsFS == nil {
 		reloader, err := newDevReloader(app.renderer, app.config, app.islands)
 		if err != nil {
 			app.config.logger.Warn("failed to start dev reloader", "error", err)
@@ -186,7 +197,13 @@ func (app *App) buildHandler() (http.Handler, error) {
 
 	// Static directories.
 	for _, sd := range app.staticDirs {
-		mux.Handle(sd.prefix, http.StripPrefix(sd.prefix, http.FileServer(http.Dir(sd.dir))))
+		var handler http.Handler
+		if sd.fsys != nil {
+			handler = http.StripPrefix(sd.prefix, http.FileServerFS(sd.fsys))
+		} else {
+			handler = http.StripPrefix(sd.prefix, http.FileServer(http.Dir(sd.dir)))
+		}
+		mux.Handle(sd.prefix, handler)
 	}
 
 	// Register user routes.

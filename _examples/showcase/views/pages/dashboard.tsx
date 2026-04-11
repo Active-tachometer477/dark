@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 // Demonstrates: Route.Loaders — concurrent data loading
 //
 // Three independent data sources (user, activity, notifications) are fetched

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestIntegrationGetWithLoader(t *testing.T) {
@@ -1625,5 +1626,115 @@ func TestStreamingWithCSS(t *testing.T) {
 	}
 	if !strings.Contains(s, "Styled Styled") {
 		t.Fatalf("expected component content, got: %s", s)
+	}
+}
+
+func TestWithViewsFS(t *testing.T) {
+	// Create an in-memory FS with a simple TSX component (no import { h } needed).
+	mapFS := fstest.MapFS{
+		"simple.tsx": {Data: []byte(`export default function Simple({ name }: any) {
+  return <div>Hello {name}</div>;
+}
+`)},
+	}
+
+	app, err := New(
+		WithViewsFS(mapFS),
+		WithPoolSize(1),
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer app.Close()
+
+	app.Get("/", Route{
+		Component: "simple.tsx",
+		Loader: func(ctx Context) (any, error) {
+			return map[string]any{"name": "Embedded"}, nil
+		},
+	})
+
+	srv := httptest.NewServer(app.MustHandler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	html := string(body)
+
+	if !strings.Contains(html, "Hello Embedded") {
+		t.Fatalf("expected 'Hello Embedded' in body, got: %s", html)
+	}
+}
+
+func TestStaticFS(t *testing.T) {
+	mapFS := fstest.MapFS{
+		"style.css": {Data: []byte("body { color: red; }")},
+		"app.js":    {Data: []byte("console.log('hello');")},
+	}
+
+	app, err := New(
+		WithTemplateDir("_testdata"),
+		WithPoolSize(1),
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer app.Close()
+
+	app.StaticFS("/assets/", mapFS)
+
+	srv := httptest.NewServer(app.MustHandler())
+	defer srv.Close()
+
+	// Test CSS file.
+	resp, err := http.Get(srv.URL + "/assets/style.css")
+	if err != nil {
+		t.Fatalf("GET /assets/style.css: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "body { color: red; }") {
+		t.Fatalf("expected CSS content, got: %s", body)
+	}
+
+	// Test JS file.
+	resp2, err := http.Get(srv.URL + "/assets/app.js")
+	if err != nil {
+		t.Fatalf("GET /assets/app.js: %v", err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", resp2.StatusCode)
+	}
+
+	body2, _ := io.ReadAll(resp2.Body)
+	if !strings.Contains(string(body2), "console.log") {
+		t.Fatalf("expected JS content, got: %s", body2)
+	}
+
+	// Test 404 for missing file.
+	resp3, err := http.Get(srv.URL + "/assets/missing.txt")
+	if err != nil {
+		t.Fatalf("GET /assets/missing.txt: %v", err)
+	}
+	defer resp3.Body.Close()
+
+	if resp3.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing file status: got %d, want 404", resp3.StatusCode)
 	}
 }

@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function SettingsLayout({ children }: any) {
   return (
     <div class="settings-layout">

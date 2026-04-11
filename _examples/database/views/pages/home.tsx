@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function Home({ user, flashes }: any) {
   return (
     <div>

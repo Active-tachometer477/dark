@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 export default function Layout({ children }: any) {
   return (
     <html lang="en">

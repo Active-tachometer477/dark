@@ -75,9 +75,10 @@ type uikit struct {
 	// clientPkgCheck is the package directory to stat for existence.
 	clientPkgCheck string
 
-	jsxFactory    string // esbuild JSXFactory
-	jsxFragment   string // esbuild JSXFragment
-	createElement string // SSR codegen: globalThis name (e.g., "preact.h" or "react.createElement")
+	jsxFactory       string // esbuild JSXFactory (used by generated entry code, not user TSX)
+	jsxFragment      string // esbuild JSXFragment (used by generated entry code, not user TSX)
+	jsxImportSource  string // esbuild JSXImportSource for automatic JSX transform
+	createElement    string // SSR codegen: globalThis name (e.g., "preact.h" or "react.createElement")
 
 	rtsResolveJS string // JS snippet to resolve __rts (renderToString) from globals
 	darkModuleJS string // SSR-side island wrapper module broadcast to workers
@@ -101,9 +102,10 @@ func resolveUIKit(lib UILibrary) *uikit {
 			clientPkg:      []string{"react", "react-dom"},
 			clientPkgCheck: "react",
 
-			jsxFactory:    "React.createElement",
-			jsxFragment:   "React.Fragment",
-			createElement: "react.createElement", // lowercase: globalThis.react is set by ramune
+			jsxFactory:       "React.createElement",
+			jsxFragment:      "React.Fragment",
+			jsxImportSource:  "react",
+			createElement:    "react.createElement", // lowercase: globalThis.react is set by ramune
 
 			rtsResolveJS: "var __rts = typeof react_dom_server === 'object' ? react_dom_server.renderToString : react_dom_server;\n",
 
@@ -134,9 +136,10 @@ func resolveUIKit(lib UILibrary) *uikit {
 			clientPkg:      []string{"preact"},
 			clientPkgCheck: "preact",
 
-			jsxFactory:    "h",
-			jsxFragment:   "Fragment",
-			createElement: "preact.h",
+			jsxFactory:       "h",
+			jsxFragment:      "Fragment",
+			jsxImportSource:  "preact",
+			createElement:    "preact.h",
 
 			rtsResolveJS: "var __rts = typeof preact_render_to_string === 'function' ? preact_render_to_string : preact_render_to_string.renderToString;\n",
 

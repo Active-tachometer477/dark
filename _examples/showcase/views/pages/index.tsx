@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 // Demonstrates:
 //   - Context.Set / Context.Get (requestID from middleware)
 //   - CSRF meta tag auto-injection (visible in page source)

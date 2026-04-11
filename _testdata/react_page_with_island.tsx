@@ -1,4 +1,3 @@
-import React from 'react';
 import { island } from 'dark';
 import Counter from './react_island_counter.tsx';
 

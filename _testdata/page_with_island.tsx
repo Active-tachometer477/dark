@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import { island } from 'dark';
 import Counter from './island_counter.tsx';
 

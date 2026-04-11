@@ -1,5 +1,3 @@
-import { h } from 'preact';
-
 // Demonstrates: SSR Cache + ETag / 304 Not Modified
 //
 // This page is served from the LRU SSR cache (WithSSRCache(100)).

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,6 +49,7 @@ type renderer struct {
 	pool                 *ramune.RuntimePool
 	uikit                *uikit
 	templateDir          string
+	tempViewsDir         string // temp dir for extracted viewsFS; cleaned up in close()
 	devMode              bool
 	hasLayout            bool
 	hasIslands           bool
@@ -88,6 +90,25 @@ type cacheEntry struct {
 	srcMap     *sourceMap // parsed source map (dev mode only)
 }
 
+// extractFS copies all files from an fs.FS to a destination directory,
+// preserving the directory structure.
+func extractFS(fsys fs.FS, destDir string) error {
+	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destDir, path)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := fs.ReadFile(fsys, path)
+		if err != nil {
+			return fmt.Errorf("dark: failed to read embedded file %s: %w", path, err)
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
+}
+
 func newRenderer(cfg *config) (*renderer, error) {
 	kit := resolveUIKit(cfg.uiLibrary)
 	deps := append([]string{}, kit.ssrDeps...)
@@ -114,10 +135,30 @@ func newRenderer(cfg *config) (*renderer, error) {
 		return nil, fmt.Errorf("dark: failed to install SSR packages: %w", err)
 	}
 
+	// If viewsFS is set, extract embedded files to a temp directory
+	// so esbuild can access them via real file paths.
+	templateDir := cfg.templateDir
+	var tempViewsDir string
+	if cfg.viewsFS != nil {
+		tmpDir, err := os.MkdirTemp("", "dark-views-*")
+		if err != nil {
+			pool.Close()
+			return nil, fmt.Errorf("dark: failed to create temp dir for views FS: %w", err)
+		}
+		if err := extractFS(cfg.viewsFS, tmpDir); err != nil {
+			os.RemoveAll(tmpDir)
+			pool.Close()
+			return nil, fmt.Errorf("dark: failed to extract views FS: %w", err)
+		}
+		templateDir = tmpDir
+		tempViewsDir = tmpDir
+	}
+
 	r := &renderer{
 		pool:           pool,
 		uikit:          kit,
-		templateDir:    cfg.templateDir,
+		templateDir:    templateDir,
+		tempViewsDir:   tempViewsDir,
 		devMode:        cfg.devMode,
 		nodeModulesDir: nmDir,
 		cache:          make(map[string]*cacheEntry),
@@ -261,7 +302,11 @@ func (r *renderer) isRouteLayout(absPath string) bool {
 }
 
 func (r *renderer) close() error {
-	return r.pool.Close()
+	err := r.pool.Close()
+	if r.tempViewsDir != "" {
+		os.RemoveAll(r.tempViewsDir)
+	}
+	return err
 }
 
 func (r *renderer) render(componentPath string, routeLayouts []string, props any, skipLayout bool) (string, string, error) {
@@ -479,10 +524,9 @@ func (r *renderer) bundleComponent(filePath string) (string, string, error) {
 		Write:       false,
 		Outdir:      "/", // required for CSS extraction with Write:false
 		Plugins:     []api.Plugin{exactExternalPlugin(exactExternals)},
-		JSX:         api.JSXTransform,
-		JSXFactory:  r.uikit.jsxFactory,
-		JSXFragment: r.uikit.jsxFragment,
-		LogLevel:    api.LogLevelSilent,
+		JSX:             api.JSXAutomatic,
+		JSXImportSource: r.uikit.jsxImportSource,
+		LogLevel:        api.LogLevelSilent,
 	}
 	if r.devMode {
 		opts.Sourcemap = api.SourceMapInline
@@ -592,9 +636,8 @@ func (r *renderer) buildClientBundle(islands []islandEntry, cfg *config, nodeMod
 		ChunkNames:        "chunk-[hash]",
 		NodePaths:         []string{nodeModulesDir},
 		AbsWorkingDir:     absTemplateDir,
-		JSX:               api.JSXTransform,
-		JSXFactory:        r.uikit.jsxFactory,
-		JSXFragment:       r.uikit.jsxFragment,
+		JSX:               api.JSXAutomatic,
+		JSXImportSource:   r.uikit.jsxImportSource,
 		MinifySyntax:      !cfg.devMode,
 		MinifyWhitespace:  !cfg.devMode,
 		MinifyIdentifiers: !cfg.devMode,

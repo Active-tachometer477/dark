@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import './style.css';
 
 export default function AdminTasks({ tasks, _errors, _formData }: any) {
