@@ -1,4 +1,16 @@
-package dark
+// Package desktop provides a native desktop window for dark applications.
+// Import this package only when building desktop apps - it pulls in the
+// WebView native library dependency.
+//
+//	import "github.com/i2y/dark/desktop"
+//
+//	func init() { runtime.LockOSThread() }
+//
+//	func main() {
+//	    app, _ := dark.New(...)
+//	    desktop.Run(app.MustHandler(), desktop.Options{Title: "My App"})
+//	}
+package desktop
 
 import (
 	"fmt"
@@ -10,8 +22,8 @@ import (
 	_ "github.com/crgimenes/glaze/embedded"
 )
 
-// DesktopOptions configures a desktop window.
-type DesktopOptions struct {
+// Options configures a desktop window.
+type Options struct {
 	// Title is the window title. Defaults to "App".
 	Title string
 
@@ -31,20 +43,13 @@ type DesktopOptions struct {
 	OnReady func(url string)
 }
 
-// Desktop starts a local HTTP server with the app's handler, opens a native
+// Run starts a local HTTP server with the given handler, opens a native
 // WebView window pointing to it, and blocks until the window is closed.
 //
-// The caller must pin the main goroutine to the main OS thread before calling
-// this function. The recommended pattern:
+// The caller must pin the main goroutine to the main OS thread:
 //
 //	func init() { runtime.LockOSThread() }
-//
-//	func main() {
-//	    app, _ := dark.New(...)
-//	    // ... register routes ...
-//	    dark.Desktop(app, dark.DesktopOptions{Title: "My App"})
-//	}
-func Desktop(app *App, opts DesktopOptions) error {
+func Run(handler http.Handler, opts Options) error {
 	runtime.LockOSThread()
 
 	if opts.Title == "" {
@@ -60,14 +65,9 @@ func Desktop(app *App, opts DesktopOptions) error {
 		opts.Addr = "127.0.0.1:0"
 	}
 
-	handler, err := app.Handler()
-	if err != nil {
-		return fmt.Errorf("dark: desktop: %w", err)
-	}
-
 	ln, err := net.Listen("tcp", opts.Addr)
 	if err != nil {
-		return fmt.Errorf("dark: desktop: listen %s: %w", opts.Addr, err)
+		return fmt.Errorf("desktop: listen %s: %w", opts.Addr, err)
 	}
 
 	port := ln.Addr().(*net.TCPAddr).Port
@@ -83,7 +83,7 @@ func Desktop(app *App, opts DesktopOptions) error {
 
 	wv, err := glaze.New(opts.Debug)
 	if err != nil {
-		return fmt.Errorf("dark: desktop: webview: %w", err)
+		return fmt.Errorf("desktop: webview: %w", err)
 	}
 
 	wv.SetTitle(opts.Title)

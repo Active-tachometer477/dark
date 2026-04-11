@@ -3,6 +3,7 @@ module github.com/i2y/dark
 go 1.26
 
 require (
+	github.com/crgimenes/glaze v0.0.14
 	github.com/evanw/esbuild v0.27.4
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/i2y/ramune v0.6.0
@@ -11,7 +12,6 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
-	github.com/crgimenes/glaze v0.0.14 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
