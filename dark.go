@@ -33,9 +33,8 @@ type registeredRoute struct {
 }
 
 type staticDir struct {
-	prefix string
-	dir    string // disk directory (mutually exclusive with fsys)
-	fsys   fs.FS  // embedded/virtual filesystem
+	prefix  string
+	handler http.Handler
 }
 
 // New creates a new dark application.
@@ -119,20 +118,28 @@ func (app *App) Use(mw MiddlewareFunc) {
 
 // Static registers a static file server for the given URL prefix and directory.
 func (app *App) Static(urlPrefix, dir string) {
-	// Ensure prefix ends with / for ServeMux subtree matching.
-	if !strings.HasSuffix(urlPrefix, "/") {
-		urlPrefix += "/"
-	}
-	app.staticDirs = append(app.staticDirs, staticDir{prefix: urlPrefix, dir: dir})
+	urlPrefix = ensureTrailingSlash(urlPrefix)
+	app.staticDirs = append(app.staticDirs, staticDir{
+		prefix:  urlPrefix,
+		handler: http.StripPrefix(urlPrefix, http.FileServer(http.Dir(dir))),
+	})
 }
 
 // StaticFS registers a static file server backed by an fs.FS for the given URL prefix.
 // This supports embed.FS, os.DirFS, and any fs.FS implementation.
 func (app *App) StaticFS(urlPrefix string, fsys fs.FS) {
-	if !strings.HasSuffix(urlPrefix, "/") {
-		urlPrefix += "/"
+	urlPrefix = ensureTrailingSlash(urlPrefix)
+	app.staticDirs = append(app.staticDirs, staticDir{
+		prefix:  urlPrefix,
+		handler: http.StripPrefix(urlPrefix, http.FileServerFS(fsys)),
+	})
+}
+
+func ensureTrailingSlash(s string) string {
+	if !strings.HasSuffix(s, "/") {
+		return s + "/"
 	}
-	app.staticDirs = append(app.staticDirs, staticDir{prefix: urlPrefix, fsys: fsys})
+	return s
 }
 
 // Island registers a component for client-side hydration.
@@ -197,13 +204,7 @@ func (app *App) buildHandler() (http.Handler, error) {
 
 	// Static directories.
 	for _, sd := range app.staticDirs {
-		var handler http.Handler
-		if sd.fsys != nil {
-			handler = http.StripPrefix(sd.prefix, http.FileServerFS(sd.fsys))
-		} else {
-			handler = http.StripPrefix(sd.prefix, http.FileServer(http.Dir(sd.dir)))
-		}
-		mux.Handle(sd.prefix, handler)
+		mux.Handle(sd.prefix, sd.handler)
 	}
 
 	// Register user routes.

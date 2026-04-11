@@ -88,6 +88,9 @@ Any existing `net/http` middleware works with `app.Use()` out of the box.
 - **Concurrent loaders** — parallel data fetching with result merging
 - **Static site generation** — pre-render routes to static HTML at build time
 - **Scaffold CLI** — `dark new` / `dark generate` for project and component scaffolding
+- **Embedded views** — load TSX files from `embed.FS` for single-binary deployment
+- **StaticFS** — serve static assets from any `fs.FS` (embed.FS, os.DirFS)
+- **JSX automatic transform** — no `import { h }` or `import React` boilerplate needed
 
 ## Quick Start
 
@@ -138,8 +141,6 @@ The layout wraps every page. Each page component's output is passed as `children
 
 ```tsx
 // views/layouts/default.tsx
-import { h } from "preact"; // required — JSX transpiles to h() calls
-
 export default function Layout({ children }) {
   return (
     <html lang="en">
@@ -156,8 +157,6 @@ export default function Layout({ children }) {
 
 ```tsx
 // views/pages/index.tsx
-import { h } from "preact"; // required — JSX transpiles to h() calls
-
 export default function IndexPage({ message }) {
   return <h1>{message}</h1>;
 }
@@ -403,7 +402,6 @@ app.Island("counter", "islands/counter.tsx")
 
 ```tsx
 // views/islands/counter.tsx
-import { h } from "preact";
 import { useState } from "preact/hooks";
 
 function Counter({ initial = 0 }) {
@@ -436,8 +434,20 @@ export default function Page() {
 
 ## Static Files
 
+Serve from a directory on disk:
+
 ```go
 app.Static("/static/", "public")
+```
+
+Or from an `fs.FS` (embed.FS, os.DirFS, etc.):
+
+```go
+//go:embed public
+var publicFS embed.FS
+
+sub, _ := fs.Sub(publicFS, "public")
+app.StaticFS("/static/", sub)
 ```
 
 ## Options
@@ -446,6 +456,7 @@ app.Static("/static/", "public")
 dark.New(
     dark.WithPoolSize(4),                    // ramune RuntimePool workers (default: runtime.NumCPU())
     dark.WithTemplateDir("views"),           // TSX file directory (default: "views")
+    dark.WithViewsFS(viewsFS),              // load views from fs.FS (for embed.FS)
     dark.WithLayout("layouts/default.tsx"),   // global layout
     dark.WithDependencies("lodash"),          // npm packages (preact is always included)
     dark.WithDevMode(true),                  // hot reload + error overlay
@@ -518,12 +529,10 @@ app, err := dark.New(
 )
 ```
 
-With React, components use standard React imports:
+Components are written the same way — no framework-specific imports needed:
 
 ```tsx
 // views/pages/index.tsx
-import React from 'react';
-
 export default function IndexPage({ message }) {
   return <h1>{message}</h1>;
 }
@@ -533,7 +542,7 @@ Islands use React hooks directly:
 
 ```tsx
 // views/islands/counter.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 export default function Counter({ initial }) {
   const [count, setCount] = useState(initial || 0);
@@ -612,6 +621,56 @@ Example: [`examples/mcp-app/`](examples/mcp-app/)
 - **[database](_examples/database/)** — SQLite CRUD with sessions and authentication
 - **[deploy](_examples/deploy/)** — production setup with Dockerfile and Fly.io config
 - **[mcp-app](examples/mcp-app/)** — MCP Apps: interactive UI tools via postMessage
+
+## Single-Binary Deployment
+
+Embed views and static assets into the Go binary with `embed.FS`:
+
+```go
+package main
+
+import (
+    "embed"
+    "io/fs"
+    "log"
+    "net/http"
+
+    "github.com/i2y/dark"
+)
+
+//go:embed views
+var viewsFS embed.FS
+
+//go:embed public
+var publicFS embed.FS
+
+func main() {
+    views, _ := fs.Sub(viewsFS, "views")
+    public, _ := fs.Sub(publicFS, "public")
+
+    app, err := dark.New(
+        dark.WithViewsFS(views),
+        dark.WithLayout("layouts/default.tsx"),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer app.Close()
+
+    app.StaticFS("/static/", public)
+
+    app.Get("/", dark.Route{
+        Component: "pages/index.tsx",
+        Loader: func(ctx dark.Context) (any, error) {
+            return map[string]any{"message": "Hello!"}, nil
+        },
+    })
+
+    log.Fatal(http.ListenAndServe(":3000", app.MustHandler()))
+}
+```
+
+Build and deploy as a single binary — no `views/` or `public/` directories needed at runtime.
 
 ## Deploy
 

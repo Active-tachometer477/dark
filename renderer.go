@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -304,7 +305,9 @@ func (r *renderer) isRouteLayout(absPath string) bool {
 func (r *renderer) close() error {
 	err := r.pool.Close()
 	if r.tempViewsDir != "" {
-		os.RemoveAll(r.tempViewsDir)
+		if removeErr := os.RemoveAll(r.tempViewsDir); removeErr != nil {
+			err = errors.Join(err, removeErr)
+		}
 	}
 	return err
 }
