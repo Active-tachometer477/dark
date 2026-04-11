@@ -9,6 +9,7 @@
 _examples/hello/hello
 _examples/database/database
 _examples/deploy/cmd/server/server
+_examples/desktop-demo/desktop-demo
 
 # Generated files
 _generated/

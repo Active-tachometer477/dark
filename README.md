@@ -91,6 +91,7 @@ Any existing `net/http` middleware works with `app.Use()` out of the box.
 - **Embedded views** — load TSX files from `embed.FS` for single-binary deployment
 - **StaticFS** — serve static assets from any `fs.FS` (embed.FS, os.DirFS)
 - **JSX automatic transform** — no `import { h }` or `import React` boilerplate needed
+- **Desktop apps** — native window via WebView with Go↔JS bindings and bidirectional events
 
 ## Quick Start
 
@@ -614,11 +615,118 @@ The server declares the `io.modelcontextprotocol/ui` extension and registers eac
 
 Example: [`examples/mcp-app/`](examples/mcp-app/)
 
+## Desktop Apps
+
+Dark can run as a native desktop application using a WebView window. The `desktop` subpackage wraps your `http.Handler` in a native window, and adds Go↔JS function bindings and a bidirectional event system — inspired by [Wails](https://wails.io/) and [Tauri](https://tauri.app/). All dark features (SSR, Islands, htmx, sessions) work in desktop mode.
+
+Import `dark/desktop` only when building desktop apps — it pulls in the [glaze](https://github.com/crgimenes/glaze) WebView native library dependency.
+
+### Simple usage
+
+```go
+func init() { runtime.LockOSThread() }
+
+func main() {
+    app, _ := dark.New(dark.WithLayout("layouts/default.tsx"), dark.WithTemplateDir("views"))
+    defer app.Close()
+
+    app.Get("/", dark.Route{Component: "pages/index.tsx", Loader: indexLoader})
+
+    desktop.Run(app.MustHandler(), desktop.WithTitle("My App"), desktop.WithSize(1024, 768))
+}
+```
+
+### Full API with bindings and events
+
+```go
+func init() { runtime.LockOSThread() }
+
+func main() {
+    app, _ := dark.New(/* ... */)
+    defer app.Close()
+    // ... register routes, islands, middleware ...
+
+    dsk := desktop.New(app.MustHandler(),
+        desktop.WithTitle("My App"),
+        desktop.WithSize(1280, 800),
+        desktop.WithMinSize(640, 480),
+        desktop.WithDebug(true),
+        desktop.WithOnReady(func(url string) { fmt.Println("Running at", url) }),
+    )
+
+    // Expose Go functions to JavaScript (appear as globals, return Promises)
+    dsk.Bind("readFile", func(path string) (string, error) {
+        data, err := os.ReadFile(path)
+        return string(data), err
+    })
+
+    // Bind all exported methods of a struct
+    dsk.BindMethods("api", myService) // → window.api_get_user(), api_list_items(), etc.
+
+    // Listen for events from frontend
+    dsk.On("save", func(data any) {
+        fmt.Println("save requested:", data)
+    })
+
+    // Send events to frontend (from any goroutine)
+    go func() {
+        time.Sleep(5 * time.Second)
+        dsk.Emit("notify", map[string]any{"message": "Hello from Go!"})
+    }()
+
+    dsk.Run() // blocks until window closed
+}
+```
+
+### Frontend JavaScript API
+
+The `window.dark` API is auto-injected into every page:
+
+```javascript
+// Events
+dark.on("notify", (data) => console.log(data))   // listen for Go events
+dark.off("notify")                                 // unsubscribe
+dark.emit("save", { draft: true })                 // send event to Go
+
+// Window control
+dark.setTitle("New Title")
+dark.close()
+
+// Bound Go functions are global
+const content = await readFile("/tmp/file.txt")    // calls Go function
+const users = await api_list_items()               // BindMethods (snake_case)
+```
+
+### Window options
+
+```go
+desktop.WithTitle("App")           // window title (default: "App")
+desktop.WithSize(1024, 768)        // initial dimensions (default: 1024×768)
+desktop.WithMinSize(400, 300)      // minimum window size
+desktop.WithMaxSize(1920, 1080)    // maximum window size
+desktop.WithFixedSize()            // non-resizable window
+desktop.WithDebug(true)            // enable browser DevTools
+desktop.WithAddr("127.0.0.1:0")   // HTTP listen address (default: random port)
+desktop.WithOnReady(func(url string) { ... })
+```
+
+### Runtime control from Go
+
+These methods are safe to call from any goroutine:
+
+```go
+dsk.SetTitle("Updated")
+dsk.SetSize(800, 600)
+dsk.Eval("console.log('hello')")
+dsk.Terminate()
+```
+
 ## Examples
 
 - **[hello](_examples/hello/)** — feature-rich demo: routing, layouts, sessions, islands, streaming SSR, form validation
 - **[showcase](_examples/showcase/)** — CSRF, concurrent loaders, SSR cache + ETag, SSG, Context.Set/Get
 - **[database](_examples/database/)** — SQLite CRUD with sessions and authentication
+- **[desktop-demo](_examples/desktop-demo/)** — desktop app: Islands, htmx, sessions, Go↔JS bindings, events
 - **[deploy](_examples/deploy/)** — production setup with Dockerfile and Fly.io config
 - **[mcp-app](examples/mcp-app/)** — MCP Apps: interactive UI tools via postMessage
 
