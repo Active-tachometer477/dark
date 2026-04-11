@@ -28,18 +28,18 @@ type pendingMethods struct {
 // Call Bind before Run to register bindings. Calling after Run starts
 // applies the binding immediately (thread-safe).
 func (a *App) Bind(name string, fn any) error {
-	if a.wv == nil {
+	a.mu.Lock()
+	wv := a.wv
+	if wv == nil {
 		a.bindings = append(a.bindings, pendingBind{name, fn})
+		a.mu.Unlock()
 		return nil
 	}
-	var bindErr error
-	done := make(chan struct{})
-	a.wv.Dispatch(func() {
-		bindErr = a.wv.Bind(name, fn)
-		close(done)
+	a.mu.Unlock()
+
+	return dispatchSync(wv, func() error {
+		return wv.Bind(name, fn)
 	})
-	<-done
-	return bindErr
 }
 
 // BindMethods exposes all exported methods of obj as global JavaScript
@@ -48,32 +48,52 @@ func (a *App) Bind(name string, fn any) error {
 //
 // Methods must follow the same signature rules as Bind.
 func (a *App) BindMethods(prefix string, obj any) error {
-	if a.wv == nil {
+	a.mu.Lock()
+	wv := a.wv
+	if wv == nil {
 		a.methods = append(a.methods, pendingMethods{prefix, obj})
+		a.mu.Unlock()
 		return nil
 	}
-	var bindErr error
-	done := make(chan struct{})
-	a.wv.Dispatch(func() {
-		_, bindErr = glaze.BindMethods(a.wv, prefix, obj)
-		close(done)
+	a.mu.Unlock()
+
+	return dispatchSync(wv, func() error {
+		_, err := glaze.BindMethods(wv, prefix, obj)
+		return err
 	})
-	<-done
-	return bindErr
 }
 
-// applyBindings applies all pending Bind and BindMethods registrations.
+// applyBindings drains pending Bind and BindMethods registrations.
 // Called during Run on the UI thread, before the event loop starts.
 func (a *App) applyBindings() error {
-	for _, b := range a.bindings {
+	a.mu.Lock()
+	bindings := a.bindings
+	methods := a.methods
+	a.bindings = nil
+	a.methods = nil
+	a.mu.Unlock()
+
+	for _, b := range bindings {
 		if err := a.wv.Bind(b.name, b.fn); err != nil {
 			return fmt.Errorf("desktop: bind %q: %w", b.name, err)
 		}
 	}
-	for _, m := range a.methods {
+	for _, m := range methods {
 		if _, err := glaze.BindMethods(a.wv, m.prefix, m.obj); err != nil {
 			return fmt.Errorf("desktop: bind methods %q: %w", m.prefix, err)
 		}
 	}
 	return nil
+}
+
+// dispatchSync posts fn to the WebView UI thread and blocks until it completes.
+func dispatchSync(wv glaze.WebView, fn func() error) error {
+	done := make(chan struct{})
+	var err error
+	wv.Dispatch(func() {
+		err = fn()
+		close(done)
+	})
+	<-done
+	return err
 }

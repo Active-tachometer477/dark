@@ -118,12 +118,19 @@ type App struct {
 	handler http.Handler
 	cfg     *config
 
-	wv glaze.WebView // set during Run, nil before
-
 	mu       sync.Mutex
+	wv       glaze.WebView // set during Run, nil before; guarded by mu
 	bindings []pendingBind
 	methods  []pendingMethods
 	handlers map[string][]func(data any)
+}
+
+// webview returns the current WebView, or nil if Run has not started.
+func (a *App) webview() glaze.WebView {
+	a.mu.Lock()
+	wv := a.wv
+	a.mu.Unlock()
+	return wv
 }
 
 // New creates a desktop App. Call Bind, BindMethods, and On to configure
@@ -169,18 +176,18 @@ func (a *App) Run() error {
 	if err != nil {
 		return fmt.Errorf("desktop: webview: %w", err)
 	}
-	a.wv = wv
 
-	// Apply pending bindings.
+	a.mu.Lock()
+	a.wv = wv
+	a.mu.Unlock()
+
 	if err := a.applyBindings(); err != nil {
 		wv.Destroy()
 		return err
 	}
 
-	// Inject JS bridge and bind internal event/window-control functions.
 	a.setupBridge()
 
-	// Window configuration.
 	wv.SetTitle(a.cfg.title)
 
 	if a.cfg.fixedSize {
@@ -204,35 +211,39 @@ func (a *App) Run() error {
 
 // SetTitle changes the window title at runtime. Safe to call from any goroutine.
 func (a *App) SetTitle(title string) {
-	if a.wv == nil {
+	wv := a.webview()
+	if wv == nil {
 		return
 	}
-	a.wv.Dispatch(func() { a.wv.SetTitle(title) })
+	wv.Dispatch(func() { wv.SetTitle(title) })
 }
 
 // SetSize changes the window dimensions at runtime. Safe to call from any goroutine.
 func (a *App) SetSize(w, h int) {
-	if a.wv == nil {
+	wv := a.webview()
+	if wv == nil {
 		return
 	}
-	a.wv.Dispatch(func() { a.wv.SetSize(w, h, glaze.HintNone) })
+	wv.Dispatch(func() { wv.SetSize(w, h, glaze.HintNone) })
 }
 
 // Eval executes JavaScript in the WebView. Safe to call from any goroutine.
 func (a *App) Eval(js string) {
-	if a.wv == nil {
+	wv := a.webview()
+	if wv == nil {
 		return
 	}
-	a.wv.Dispatch(func() { a.wv.Eval(js) })
+	wv.Dispatch(func() { wv.Eval(js) })
 }
 
 // Terminate closes the window and stops the event loop.
 // Safe to call from any goroutine.
 func (a *App) Terminate() {
-	if a.wv == nil {
+	wv := a.webview()
+	if wv == nil {
 		return
 	}
-	a.wv.Terminate()
+	wv.Terminate()
 }
 
 // Run is a convenience function for simple desktop apps that don't need

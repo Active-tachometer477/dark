@@ -28,9 +28,8 @@ const bridgeJS = `(function() {
   window.__dark_dispatch = function(event, data) {
     var fns = listeners[event];
     if (!fns) return;
-    var parsed = JSON.parse(data);
     fns.slice().forEach(function(fn) {
-      try { fn(parsed); } catch(e) { console.error("dark event error:", e); }
+      try { fn(data); } catch(e) { console.error("dark event error:", e); }
     });
   };
 })();`
@@ -47,12 +46,13 @@ func (a *App) On(event string, fn func(data any)) {
 // registered via window.dark.on(event, callback) will be invoked.
 // Safe to call from any goroutine.
 func (a *App) Emit(event string, data any) {
-	if a.wv == nil {
+	wv := a.webview()
+	if wv == nil {
 		return
 	}
 	dataBytes, _ := json.Marshal(data)
-	js := fmt.Sprintf(`window.__dark_dispatch(%s,%s)`, jsonString(event), jsonString(string(dataBytes)))
-	a.wv.Dispatch(func() { a.wv.Eval(js) })
+	js := fmt.Sprintf(`window.__dark_dispatch(%s,%s)`, jsonString(event), string(dataBytes))
+	wv.Dispatch(func() { wv.Eval(js) })
 }
 
 // setupBridge injects the JS bridge and binds internal functions for
@@ -60,7 +60,6 @@ func (a *App) Emit(event string, data any) {
 func (a *App) setupBridge() {
 	a.wv.Init(bridgeJS)
 
-	// JS → Go event dispatch
 	a.wv.Bind("__dark_emit", func(event, dataJSON string) {
 		a.mu.Lock()
 		fns := make([]func(data any), len(a.handlers[event]))
@@ -76,7 +75,6 @@ func (a *App) setupBridge() {
 		}
 	})
 
-	// JS → Go window control
 	a.wv.Bind("__dark_set_title", func(title string) {
 		a.wv.Dispatch(func() { a.wv.SetTitle(title) })
 	})

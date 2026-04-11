@@ -77,9 +77,9 @@ func main() {
 		})
 	})
 
-	// Periodic Go→JS event (every 5 seconds)
+	// Periodic Go→JS event (every 5 seconds).
+	// Early ticks no-op safely if the window hasn't loaded yet.
 	go func() {
-		time.Sleep(3 * time.Second) // wait for window to be ready
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		var count int
