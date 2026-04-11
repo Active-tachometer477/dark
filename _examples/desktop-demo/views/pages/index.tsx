@@ -1,100 +1,141 @@
-export default function IndexPage({ message, time }: any) {
+import { island } from 'dark';
+import Clock from '../islands/clock.tsx';
+
+const LiveClock = island('clock', Clock);
+
+export default function IndexPage({ notes, username, flashes, _errors, _formData }: any) {
+  const getError = (field: string) => _errors?.find((e: any) => e.field === field);
+  const titleErr = getError('title');
+
   return (
-    <div>
-      <h1>Dark Desktop</h1>
-      <p class="subtitle">Go + WebView with bindings, events, and window control</p>
-
-      <div class="section">
-        <h2>Go Bindings</h2>
-        <p style="color: #aaa; font-size: 13px; margin-bottom: 12px;">
-          Call Go functions from JavaScript — they return Promises.
-        </p>
-        <button onclick="callGreet()">greet("World")</button>
-        <button class="secondary" onclick="callAdd()">add(17, 25)</button>
-        <button class="secondary" onclick="callServerTime()">server_time()</button>
-        <div id="bind-result" class="result">Click a button above...</div>
-      </div>
-
-      <div class="section">
-        <h2>Events</h2>
-        <p style="color: #aaa; font-size: 13px; margin-bottom: 12px;">
-          Bidirectional events between Go and JavaScript.
-        </p>
-        <button onclick="sendEvent()">JS → Go: emit "clicked"</button>
-        <button class="secondary" onclick="requestNotify()">Ask Go to emit event</button>
-      </div>
-
-      <div class="section">
-        <h2>Window Control</h2>
-        <p style="color: #aaa; font-size: 13px; margin-bottom: 12px;">
-          Control the native window from JavaScript.
-        </p>
-        <button onclick="dark.setTitle('Title Changed!')">Change Title</button>
-        <button class="secondary" onclick="dark.setTitle('Dark Desktop')">Reset Title</button>
-        <button class="danger" onclick="dark.close()">Close Window</button>
-      </div>
-
-      <div class="section">
-        <h2>Event Log</h2>
-        <div id="log">
-          <div class="entry" style="color: #555;">Waiting for events...</div>
+    <div id="app">
+      <div class="header">
+        <h1>Dark Notes</h1>
+        <div class="header-right">
+          {username
+            ? <span class="user-badge">{username}</span>
+            : <form method="POST" action="/username" class="username-form">
+                <input name="username" placeholder="Your name" />
+                <button class="btn-sm">Set</button>
+              </form>
+          }
         </div>
       </div>
 
+      {flashes?.notice && <div class="flash">{flashes.notice}</div>}
+
+      {/* Island: live clock with client-side state */}
+      <div class="card">
+        <h3>Island Component</h3>
+        <LiveClock label="Client-side hydrated clock" />
+      </div>
+
+      {/* Desktop bindings + events */}
+      <div class="card">
+        <h3>Desktop Bridge</h3>
+        <div class="actions">
+          <button class="btn-ghost btn-sm" onclick="doExport()">Export Notes to File</button>
+          <button class="btn-ghost btn-sm" onclick="showSystemInfo()">System Info</button>
+          <button class="btn-ghost btn-sm" onclick="dark.setTitle('Dark Notes — ' + new Date().toLocaleTimeString())">Update Window Title</button>
+        </div>
+        <div id="bridge-output" style="margin-top: 8px; display: none;"></div>
+      </div>
+
+      {/* Note form with validation (htmx) */}
+      <div class="card">
+        <h3>Add Note</h3>
+        <form hx-post="/notes" hx-target="#app" hx-swap="outerHTML">
+          <div class={`form-row ${titleErr ? 'has-error' : ''}`}>
+            <label>Title</label>
+            <input name="title" value={_formData?.title || ''} placeholder="Note title..." />
+            {titleErr && <div class="field-error">{titleErr.message}</div>}
+          </div>
+          <div class="form-row">
+            <label>Body</label>
+            <textarea name="body" placeholder="Optional body text...">{_formData?.body || ''}</textarea>
+          </div>
+          <button type="submit" style="margin-top: 4px;">Add Note</button>
+        </form>
+      </div>
+
+      {/* Notes list (htmx delete) */}
+      <div class="card">
+        <h3>Notes ({notes?.length || 0})</h3>
+        {(!notes || notes.length === 0)
+          ? <div class="empty">No notes yet. Add one above!</div>
+          : notes.map((note: any) => (
+              <div class="note" key={note.id}>
+                <div>
+                  <div class="note-title">{note.title}</div>
+                  {note.body && <div class="note-body">{note.body}</div>}
+                  <div class="note-time">{note.createdAt}</div>
+                </div>
+                <button
+                  class="note-delete"
+                  hx-delete={`/notes/${note.id}`}
+                  hx-target="#app"
+                  hx-swap="outerHTML"
+                  title="Delete"
+                >&times;</button>
+              </div>
+            ))
+        }
+      </div>
+
+      {/* Toast container for desktop events */}
+      <div id="toast-container"></div>
+
       <script dangerouslySetInnerHTML={{ __html: `
-        var logEl = document.getElementById('log');
-        var resultEl = document.getElementById('bind-result');
-        var first = true;
-
-        function log(cls, msg) {
-          if (first) { logEl.innerHTML = ''; first = false; }
-          var d = document.createElement('div');
-          d.className = 'entry ' + cls;
-          var ts = new Date().toLocaleTimeString();
-          d.textContent = '[' + ts + '] ' + msg;
-          logEl.appendChild(d);
-          logEl.scrollTop = logEl.scrollHeight;
+        // --- Desktop Bindings ---
+        async function doExport() {
+          try {
+            var path = await export_notes();
+            showOutput('Exported to: ' + path);
+          } catch(e) {
+            showOutput('Export failed: ' + e.message);
+          }
         }
 
-        // --- Bindings ---
-        async function callGreet() {
-          var result = await greet('World');
-          resultEl.textContent = 'greet("World") => ' + JSON.stringify(result);
-          log('go', 'greet("World") => ' + result);
+        async function showSystemInfo() {
+          var info = await system_info();
+          var el = document.getElementById('bridge-output');
+          el.style.display = 'block';
+          el.innerHTML = '<div class="info-grid">'
+            + infoItem('Hostname', info.hostname)
+            + infoItem('OS', info.os)
+            + infoItem('Arch', info.arch)
+            + infoItem('CPUs', info.cpus)
+            + infoItem('Go', info.goVersion)
+            + infoItem('Home', info.homeDir)
+            + '</div>';
         }
 
-        async function callAdd() {
-          var result = await add(17, 25);
-          resultEl.textContent = 'add(17, 25) => ' + result;
-          log('go', 'add(17, 25) => ' + result);
+        function infoItem(label, value) {
+          return '<div class="info-item"><span class="info-label">' + label + '</span> <span class="info-value">' + value + '</span></div>';
         }
 
-        async function callServerTime() {
-          var result = await server_time();
-          resultEl.textContent = 'server_time() => ' + result;
-          log('go', 'server_time() => ' + result);
+        function showOutput(msg) {
+          var el = document.getElementById('bridge-output');
+          el.style.display = 'block';
+          el.innerHTML = '<div class="info-item"><span class="info-value">' + msg + '</span></div>';
         }
 
-        // --- Events ---
-        dark.on('notify', function(data) {
-          log('event', 'Received from Go: ' + JSON.stringify(data));
+        // --- Desktop Events ---
+        dark.on('notification', function(data) {
+          showToast(data.message);
         });
 
-        dark.on('counter', function(data) {
-          log('event', 'Go counter: ' + data.count);
-        });
-
-        function sendEvent() {
-          dark.emit('clicked', { x: Math.round(Math.random() * 100), y: Math.round(Math.random() * 100) });
-          log('js', 'Emitted "clicked" event to Go');
+        function showToast(msg) {
+          var toast = document.createElement('div');
+          toast.className = 'toast';
+          toast.textContent = msg;
+          document.body.appendChild(toast);
+          setTimeout(function() { toast.remove(); }, 3000);
         }
 
-        async function requestNotify() {
-          await request_notify();
-          log('js', 'Asked Go to send a notification event');
-        }
-
-        log('js', 'Desktop app ready');
+        // Update window title with note count
+        var noteCount = ${notes?.length || 0};
+        dark.emit('update-title', { title: 'Dark Notes (' + noteCount + ')' });
       `}} />
     </div>
   );
