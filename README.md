@@ -617,11 +617,7 @@ Example: [`examples/mcp-app/`](examples/mcp-app/)
 
 ## Desktop Apps
 
-Dark can run as a native desktop application using a WebView window. The `desktop` subpackage wraps your `http.Handler` in a native window, and adds Go↔JS function bindings and a bidirectional event system — inspired by [Wails](https://wails.io/) and [Tauri](https://tauri.app/). All dark features (SSR, Islands, htmx, sessions) work in desktop mode.
-
-Import `dark/desktop` only when building desktop apps — it pulls in the [glaze](https://github.com/crgimenes/glaze) WebView native library dependency.
-
-### Simple usage
+Dark can run as a native desktop application. The [`desktop`](desktop/) subpackage wraps your `http.Handler` in a WebView window with Go↔JS function bindings and a bidirectional event system. All dark features (SSR, Islands, htmx, sessions) work unmodified.
 
 ```go
 func init() { runtime.LockOSThread() }
@@ -632,94 +628,18 @@ func main() {
 
     app.Get("/", dark.Route{Component: "pages/index.tsx", Loader: indexLoader})
 
-    desktop.Run(app.MustHandler(), desktop.WithTitle("My App"), desktop.WithSize(1024, 768))
+    // Simple one-liner
+    desktop.Run(app.MustHandler(), desktop.WithTitle("My App"))
+
+    // Or full API with bindings and events
+    dsk := desktop.New(app.MustHandler(), desktop.WithTitle("My App"), desktop.WithDebug(true))
+    dsk.Bind("greet", func(name string) string { return "Hello, " + name })
+    dsk.On("save", func(data any) { fmt.Println("save:", data) })
+    dsk.Run()
 }
 ```
 
-### Full API with bindings and events
-
-```go
-func init() { runtime.LockOSThread() }
-
-func main() {
-    app, _ := dark.New(/* ... */)
-    defer app.Close()
-    // ... register routes, islands, middleware ...
-
-    dsk := desktop.New(app.MustHandler(),
-        desktop.WithTitle("My App"),
-        desktop.WithSize(1280, 800),
-        desktop.WithMinSize(640, 480),
-        desktop.WithDebug(true),
-        desktop.WithOnReady(func(url string) { fmt.Println("Running at", url) }),
-    )
-
-    // Expose Go functions to JavaScript (appear as globals, return Promises)
-    dsk.Bind("readFile", func(path string) (string, error) {
-        data, err := os.ReadFile(path)
-        return string(data), err
-    })
-
-    // Bind all exported methods of a struct
-    dsk.BindMethods("api", myService) // → window.api_get_user(), api_list_items(), etc.
-
-    // Listen for events from frontend
-    dsk.On("save", func(data any) {
-        fmt.Println("save requested:", data)
-    })
-
-    // Send events to frontend (from any goroutine)
-    go func() {
-        time.Sleep(5 * time.Second)
-        dsk.Emit("notify", map[string]any{"message": "Hello from Go!"})
-    }()
-
-    dsk.Run() // blocks until window closed
-}
-```
-
-### Frontend JavaScript API
-
-The `window.dark` API is auto-injected into every page:
-
-```javascript
-// Events
-dark.on("notify", (data) => console.log(data))   // listen for Go events
-dark.off("notify")                                 // unsubscribe
-dark.emit("save", { draft: true })                 // send event to Go
-
-// Window control
-dark.setTitle("New Title")
-dark.close()
-
-// Bound Go functions are global
-const content = await readFile("/tmp/file.txt")    // calls Go function
-const users = await api_list_items()               // BindMethods (snake_case)
-```
-
-### Window options
-
-```go
-desktop.WithTitle("App")           // window title (default: "App")
-desktop.WithSize(1024, 768)        // initial dimensions (default: 1024×768)
-desktop.WithMinSize(400, 300)      // minimum window size
-desktop.WithMaxSize(1920, 1080)    // maximum window size
-desktop.WithFixedSize()            // non-resizable window
-desktop.WithDebug(true)            // enable browser DevTools
-desktop.WithAddr("127.0.0.1:0")   // HTTP listen address (default: random port)
-desktop.WithOnReady(func(url string) { ... })
-```
-
-### Runtime control from Go
-
-These methods are safe to call from any goroutine:
-
-```go
-dsk.SetTitle("Updated")
-dsk.SetSize(800, 600)
-dsk.Eval("console.log('hello')")
-dsk.Terminate()
-```
+See [`desktop/README.md`](desktop/README.md) for the full API reference (bindings, events, window control, options).
 
 ## Examples
 
