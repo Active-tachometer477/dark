@@ -122,8 +122,9 @@ type App struct {
 	wv       glaze.WebView // set during Run, nil before; guarded by mu
 	bindings []pendingBind
 	methods  []pendingMethods
-	handlers map[string][]func(data any)
-	ready    chan struct{}
+	handlers  map[string][]func(data any)
+	ready     chan struct{}
+	readyOnce sync.Once
 }
 
 // webview returns the current WebView, or nil if Run has not started.
@@ -190,7 +191,7 @@ func (a *App) Run() error {
 
 	a.setupBridge()
 	a.setupFeatures()
-	close(a.ready)
+	a.readyOnce.Do(func() { close(a.ready) })
 
 	wv.SetTitle(a.cfg.title)
 

@@ -53,9 +53,7 @@ func (a *App) setupFeatures() {
 
 	a.wv.Bind("__dark_open_files", func(optsJSON string) ([]string, error) {
 		opts := parseDialogOptions(optsJSON)
-		zo := zenityOpts(opts)
-		zo = append(zo, zenity.ShowHidden())
-		paths, err := zenity.SelectFileMultiple(zo...)
+		paths, err := zenity.SelectFileMultiple(zenityOpts(opts)...)
 		if err == zenity.ErrCanceled {
 			return nil, nil
 		}
@@ -75,14 +73,8 @@ func (a *App) setupFeatures() {
 
 	a.wv.Bind("__dark_pick_folder", func(optsJSON string) (string, error) {
 		opts := parseDialogOptions(optsJSON)
-		var zo []zenity.Option
-		if opts.Title != "" {
-			zo = append(zo, zenity.Title(opts.Title))
-		}
-		if opts.Filename != "" {
-			zo = append(zo, zenity.Filename(opts.Filename))
-		}
-		path, err := zenity.SelectFile(append(zo, zenity.Directory())...)
+		zo := append(zenityOpts(opts), zenity.Directory())
+		path, err := zenity.SelectFile(zo...)
 		if err == zenity.ErrCanceled {
 			return "", nil
 		}
