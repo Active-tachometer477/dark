@@ -34,11 +34,25 @@ export default function IndexPage({ notes, username, flashes, _errors, _formData
       <div class="card">
         <h3>Desktop Bridge</h3>
         <div class="actions">
-          <button class="btn-ghost btn-sm" onclick="doExport()">Export Notes to File</button>
+          <button class="btn-ghost btn-sm" onclick="doExport()">Export Notes</button>
           <button class="btn-ghost btn-sm" onclick="showSystemInfo()">System Info</button>
-          <button class="btn-ghost btn-sm" onclick="dark.setTitle('Dark Notes — ' + new Date().toLocaleTimeString())">Update Window Title</button>
+          <button class="btn-ghost btn-sm" onclick="dark.setTitle('Dark Notes — ' + new Date().toLocaleTimeString())">Update Title</button>
         </div>
         <div id="bridge-output" style="margin-top: 8px; display: none;"></div>
+      </div>
+
+      {/* Native OS features */}
+      <div class="card">
+        <h3>Native Features</h3>
+        <div class="actions">
+          <button class="btn-ghost btn-sm" onclick="doOpenFile()">Open File</button>
+          <button class="btn-ghost btn-sm" onclick="doSaveFile()">Save File</button>
+          <button class="btn-ghost btn-sm" onclick="doPickFolder()">Pick Folder</button>
+          <button class="btn-ghost btn-sm" onclick="doClipboardRead()">Read Clipboard</button>
+          <button class="btn-ghost btn-sm" onclick="doClipboardWrite()">Copy "Hello"</button>
+          <button class="btn-ghost btn-sm" onclick="doNotify()">OS Notification</button>
+        </div>
+        <div id="native-output" style="margin-top: 8px; display: none;"></div>
       </div>
 
       {/* Note form with validation (htmx) */}
@@ -118,6 +132,42 @@ export default function IndexPage({ notes, username, flashes, _errors, _formData
           var el = document.getElementById('bridge-output');
           el.style.display = 'block';
           el.innerHTML = '<div class="info-item"><span class="info-value">' + msg + '</span></div>';
+        }
+
+        // --- Native Features ---
+        function showNative(msg) {
+          var el = document.getElementById('native-output');
+          el.style.display = 'block';
+          el.innerHTML = '<div class="info-item"><span class="info-value">' + msg + '</span></div>';
+        }
+
+        async function doOpenFile() {
+          var path = await dark.openFile({ title: 'Open a file', filters: ['*.txt', '*.md', '*.json'] });
+          showNative(path ? 'Opened: ' + path : 'Cancelled');
+        }
+
+        async function doSaveFile() {
+          var path = await dark.saveFile({ title: 'Save as', filename: 'notes.json' });
+          showNative(path ? 'Save to: ' + path : 'Cancelled');
+        }
+
+        async function doPickFolder() {
+          var path = await dark.pickFolder({ title: 'Select folder' });
+          showNative(path ? 'Folder: ' + path : 'Cancelled');
+        }
+
+        async function doClipboardRead() {
+          var text = await dark.readClipboard();
+          showNative('Clipboard: ' + (text || '(empty)'));
+        }
+
+        async function doClipboardWrite() {
+          await dark.writeClipboard('Hello from Dark Desktop!');
+          showNative('Copied to clipboard!');
+        }
+
+        async function doNotify() {
+          await dark.notify('Dark Notes', 'This is a native OS notification!');
         }
 
         // --- Desktop Events ---

@@ -71,9 +71,9 @@ func main() {
         fmt.Println("save requested:", data)
     })
 
-    // Send events to frontend (from any goroutine)
+    // Wait for WebView to be ready before emitting events
     go func() {
-        time.Sleep(5 * time.Second)
+        <-dsk.Ready()
         dsk.Emit("notify", map[string]any{"message": "Hello from Go!"})
     }()
 
@@ -150,6 +150,60 @@ dark.off("notify", handler); // remove specific listener
 dark.emit("save", { draft: true });
 ```
 
+## App Lifecycle
+
+`Ready()` returns a channel that closes once the WebView and JS bridge are initialized. Use it to safely start background work:
+
+```go
+go func() {
+    <-dsk.Ready()
+    dsk.Emit("started", nil)
+    dsk.SetTitle("Ready!")
+}()
+dsk.Run()
+```
+
+## Native Features
+
+Built-in support for file dialogs, clipboard, and OS notifications — available from JavaScript via `window.dark.*` with no setup required.
+
+### File Dialogs
+
+Native open/save dialogs powered by [zenity](https://github.com/ncruces/zenity) (pure Go, no CGo).
+
+```javascript
+// Open a file (returns path or "" if cancelled)
+const path = await dark.openFile({ title: "Open", filters: ["*.txt", "*.md"] });
+
+// Open multiple files
+const paths = await dark.openFiles({ title: "Select files" });
+
+// Save file dialog
+const savePath = await dark.saveFile({ title: "Save as", filename: "doc.txt" });
+
+// Pick a folder
+const dir = await dark.pickFolder({ title: "Select folder" });
+```
+
+Options: `title` (dialog title), `filename` (initial filename), `filters` (glob patterns).
+
+### Clipboard
+
+Read and write the system clipboard via [atotto/clipboard](https://github.com/atotto/clipboard).
+
+```javascript
+const text = await dark.readClipboard();
+await dark.writeClipboard("copied text");
+```
+
+### OS Notifications
+
+Native desktop notifications via [beeep](https://github.com/gen2brain/beeep).
+
+```javascript
+await dark.notify("Title", "Message body");
+```
+
 ## Window Control
 
 ### From JavaScript
@@ -195,4 +249,4 @@ func init() { runtime.LockOSThread() }
 
 ## Example
 
-See [`_examples/desktop-demo/`](../_examples/desktop-demo/) for a full example combining Islands, htmx, sessions, form validation, Go↔JS bindings, and desktop events.
+See [`_examples/desktop-demo/`](../_examples/desktop-demo/) for a full example combining Islands, htmx, sessions, form validation, Go↔JS bindings, desktop events, file dialogs, clipboard, and notifications.

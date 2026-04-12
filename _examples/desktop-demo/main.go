@@ -166,7 +166,7 @@ func main() {
 		}),
 	)
 
-	// Export notes as JSON file
+	// Export notes to a user-chosen file via native save dialog
 	dsk.Bind("export_notes", func() (string, error) {
 		mu.Lock()
 		data, err := json.MarshalIndent(notes, "", "  ")
@@ -182,7 +182,6 @@ func main() {
 		}
 
 		dsk.Emit("notification", map[string]any{
-			"type":    "success",
 			"message": fmt.Sprintf("Exported %d notes to %s", len(notes), path),
 		})
 		return path, nil
@@ -193,12 +192,12 @@ func main() {
 		hostname, _ := os.Hostname()
 		dir, _ := os.UserHomeDir()
 		return map[string]any{
-			"hostname": hostname,
-			"os":       runtime.GOOS,
-			"arch":     runtime.GOARCH,
-			"cpus":     runtime.NumCPU(),
+			"hostname":  hostname,
+			"os":        runtime.GOOS,
+			"arch":      runtime.GOARCH,
+			"cpus":      runtime.NumCPU(),
 			"goVersion": runtime.Version(),
-			"homeDir":  dir,
+			"homeDir":   dir,
 		}
 	})
 
@@ -210,6 +209,12 @@ func main() {
 			}
 		}
 	})
+
+	// Use Ready() to safely start background work after WebView is initialized
+	go func() {
+		<-dsk.Ready()
+		fmt.Println("WebView ready — background goroutines can safely use Emit")
+	}()
 
 	if err := dsk.Run(); err != nil {
 		log.Fatal(err)

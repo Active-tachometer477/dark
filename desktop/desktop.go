@@ -123,6 +123,7 @@ type App struct {
 	bindings []pendingBind
 	methods  []pendingMethods
 	handlers map[string][]func(data any)
+	ready    chan struct{}
 }
 
 // webview returns the current WebView, or nil if Run has not started.
@@ -144,6 +145,7 @@ func New(handler http.Handler, opts ...Option) *App {
 		handler:  handler,
 		cfg:      cfg,
 		handlers: make(map[string][]func(data any)),
+		ready:    make(chan struct{}),
 	}
 }
 
@@ -187,6 +189,8 @@ func (a *App) Run() error {
 	}
 
 	a.setupBridge()
+	a.setupFeatures()
+	close(a.ready)
 
 	wv.SetTitle(a.cfg.title)
 
@@ -207,6 +211,18 @@ func (a *App) Run() error {
 	wv.Destroy()
 
 	return nil
+}
+
+// Ready returns a channel that is closed once the WebView and JS bridge are
+// initialized. Use this to safely wait before calling Emit or other methods
+// from background goroutines:
+//
+//	go func() {
+//	    <-dsk.Ready()
+//	    dsk.Emit("started", nil)
+//	}()
+func (a *App) Ready() <-chan struct{} {
+	return a.ready
 }
 
 // SetTitle changes the window title at runtime. Safe to call from any goroutine.

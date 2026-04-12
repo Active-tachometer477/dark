@@ -23,7 +23,14 @@ const bridgeJS = `(function() {
       return __dark_emit(event, JSON.stringify(data !== undefined ? data : null));
     },
     setTitle: function(title) { return __dark_set_title(title); },
-    close: function() { return __dark_close(); }
+    close: function() { return __dark_close(); },
+    openFile: function(opts) { return __dark_open_file(JSON.stringify(opts || {})); },
+    openFiles: function(opts) { return __dark_open_files(JSON.stringify(opts || {})); },
+    saveFile: function(opts) { return __dark_save_file(JSON.stringify(opts || {})); },
+    pickFolder: function(opts) { return __dark_pick_folder(JSON.stringify(opts || {})); },
+    readClipboard: function() { return __dark_read_clipboard(); },
+    writeClipboard: function(text) { return __dark_write_clipboard(text); },
+    notify: function(title, message) { return __dark_notify(title, message); }
   };
   window.__dark_dispatch = function(event, data) {
     var fns = listeners[event];
