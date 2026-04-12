@@ -86,8 +86,6 @@ Any existing `net/http` middleware works with `app.Use()` out of the box.
 - **SSR caching** — LRU in-memory cache with ETag / 304 Not Modified
 - **CSRF protection** — session-based tokens with automatic htmx/TSX integration
 - **Concurrent loaders** — parallel data fetching with result merging
-- **Static site generation** — pre-render routes to static HTML at build time
-- **Scaffold CLI** — `dark new` / `dark generate` for project and component scaffolding
 - **Embedded views** — load TSX files from `embed.FS` for single-binary deployment
 - **StaticFS** — serve static assets from any `fs.FS` (embed.FS, os.DirFS)
 - **JSX automatic transform** — no `import { h }` or `import React` boilerplate needed
@@ -128,14 +126,6 @@ func main() {
 
     log.Fatal(http.ListenAndServe(":3000", app.MustHandler()))
 }
-```
-
-Or use the scaffold CLI to generate a new project:
-
-```bash
-go install github.com/i2y/dark/cmd/dark@latest
-dark new myapp
-cd myapp && go mod tidy && make dev
 ```
 
 The layout wraps every page. Each page component's output is passed as `children`. On htmx requests (`HX-Request` header), the layout is skipped and only the page fragment is returned.
@@ -401,33 +391,36 @@ Register interactive components for client-side hydration:
 app.Island("counter", "islands/counter.tsx")
 ```
 
+Island components are plain Preact/React components with a default export:
+
 ```tsx
 // views/islands/counter.tsx
 import { useState } from "preact/hooks";
 
-function Counter({ initial = 0 }) {
+export default function Counter({ initial = 0 }) {
   const [count, setCount] = useState(initial);
   return <button onClick={() => setCount(count + 1)}>Count: {count}</button>;
 }
-
-// Wrap with dark.island() — loaded immediately by default
-export default dark.island("counter", Counter);
-
-// Lazy loading strategies:
-// dark.island("counter", Counter, { load: "idle" })    — requestIdleCallback
-// dark.island("counter", Counter, { load: "visible" }) — IntersectionObserver
 ```
 
-Use in any page TSX:
+In a page, wrap with `island()` from the `dark` module to mark it for client-side hydration:
 
 ```tsx
+// views/pages/index.tsx
+import { island } from "dark";
 import Counter from "../islands/counter.tsx";
+
+const InteractiveCounter = island("counter", Counter);
+
+// Lazy loading strategies:
+// island("counter", Counter, { load: "idle" })    — requestIdleCallback
+// island("counter", Counter, { load: "visible" }) — IntersectionObserver
 
 export default function Page() {
   return (
     <div>
       <h1>My Page</h1>
-      <Counter initial={5} />
+      <InteractiveCounter initial={5} />
     </div>
   );
 }
@@ -490,34 +483,6 @@ myapp/
     └── style.css
 ```
 
-## Static Site Generation
-
-Pre-render routes to static HTML at build time:
-
-```go
-err := app.GenerateStaticSite("dist", []dark.StaticRoute{
-    {
-        Path:      "/",
-        Component: "pages/index.tsx",
-        Loader:    indexLoader,
-    },
-    {
-        Path:      "/about",
-        Component: "pages/about.tsx",
-    },
-    {
-        // Parameterized routes: StaticPaths returns all concrete paths
-        Component: "pages/post.tsx",
-        StaticPaths: func() []string {
-            return []string{"/posts/1", "/posts/2", "/posts/3"}
-        },
-        Loader: postLoader,
-    },
-})
-```
-
-Output is written to `dist/` as `index.html` files with all CSS and island assets copied.
-
 ## React Support
 
 Dark defaults to Preact but also supports React. Pass `WithUILibrary(dark.React)` to switch:
@@ -552,25 +517,6 @@ export default function Counter({ initial }) {
 ```
 
 MCP Apps also support React via `WithMCPUILibrary(dark.React)`.
-
-## Scaffold CLI
-
-Generate projects and components:
-
-```bash
-go install github.com/i2y/dark/cmd/dark@latest
-
-# New project (defaults to Preact)
-dark new myapp
-cd myapp && go mod tidy && make dev
-
-# New project with React
-dark new myapp --ui react
-
-# Generate components
-dark generate route users    # → views/pages/users.tsx
-dark generate island counter # → views/islands/counter.tsx
-```
 
 ## MCP Apps (experimental)
 
