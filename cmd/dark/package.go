@@ -77,14 +77,12 @@ func detectProjectName() string {
 	return filepath.Base(dir)
 }
 
-// --- macOS .app bundle ---
-
 func packageMacOS(cfg packageConfig) {
 	appDir := filepath.Join(cfg.outDir, cfg.name+".app")
 	macosDir := filepath.Join(appDir, "Contents", "MacOS")
 	resDir := filepath.Join(appDir, "Contents", "Resources")
 
-	os.RemoveAll(appDir)
+	safeRemoveAll(appDir)
 	for _, d := range []string{macosDir, resDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			fatal("create directory: %v", err)
@@ -116,11 +114,9 @@ func packageMacOS(cfg packageConfig) {
 	fmt.Printf("Created %s\n", appDir)
 }
 
-// --- Windows ---
-
 func packageWindows(cfg packageConfig) {
 	appDir := filepath.Join(cfg.outDir, cfg.name)
-	os.RemoveAll(appDir)
+	safeRemoveAll(appDir)
 	if err := os.MkdirAll(appDir, 0o755); err != nil {
 		fatal("create directory: %v", err)
 	}
@@ -137,13 +133,11 @@ func packageWindows(cfg packageConfig) {
 	fmt.Printf("Created %s\n", appDir)
 }
 
-// --- Linux ---
-
 func packageLinux(cfg packageConfig) {
 	appDir := filepath.Join(cfg.outDir, cfg.name)
 	binName := strings.ToLower(strings.ReplaceAll(cfg.name, " ", "-"))
 
-	os.RemoveAll(appDir)
+	safeRemoveAll(appDir)
 	if err := os.MkdirAll(appDir, 0o755); err != nil {
 		fatal("create directory: %v", err)
 	}
@@ -166,7 +160,18 @@ func packageLinux(cfg packageConfig) {
 	fmt.Printf("Created %s\n", appDir)
 }
 
-// --- helpers ---
+func safeRemoveAll(dir string) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		fatal("resolve path: %v", err)
+	}
+	cwd, _ := os.Getwd()
+	rel, err := filepath.Rel(cwd, abs)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		fatal("refusing to remove %s: outside working directory", abs)
+	}
+	os.RemoveAll(abs)
+}
 
 func buildBinary(goos, goarch, ldflags, output string, tags ...string) {
 	args := []string{"build", "-o", output}
@@ -264,9 +269,11 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
 	_, err = io.Copy(out, in)
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
 	return err
 }
 
