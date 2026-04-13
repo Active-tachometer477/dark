@@ -83,7 +83,7 @@ func (a *App) Emit(event string, data any) {
 
 // setupBridge injects the JS bridge and binds internal functions for
 // event dispatch and window control. Called during Run on the UI thread.
-func (a *App) setupBridge() {
+func (a *App) setupBridge(baseURL string) {
 	a.wv.Init(bridgeJS)
 
 	a.wv.Bind("__dark_emit", func(event, dataJSON string) {
@@ -109,8 +109,7 @@ func (a *App) setupBridge() {
 		a.wv.Terminate()
 	})
 
-	// Inject external-link interception with the resolved origin.
-	a.wv.Init(fmt.Sprintf(externalLinkJSTmpl, jsonString(a.baseURL)))
+	a.wv.Init(fmt.Sprintf(externalLinkJSTmpl, jsonString(baseURL)))
 }
 
 // jsonString returns a JSON-encoded string literal for safe JS embedding.

@@ -103,13 +103,11 @@ func (a *App) setupFeatures() {
 
 	// --- Open External URLs ---
 
-	a.wv.Bind("__dark_open_external", func(rawURL string) error {
-		return openInBrowser(rawURL)
-	})
+	a.wv.Bind("__dark_open_external", openInBrowser)
 }
 
 // openInBrowser opens a URL in the system's default browser.
-// Only http and https schemes are allowed.
+// Only http/https allowed to prevent file:// or javascript: exploitation.
 func openInBrowser(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -118,14 +116,20 @@ func openInBrowser(rawURL string) error {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return fmt.Errorf("unsupported scheme %q: only http and https are allowed", u.Scheme)
 	}
+	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		return exec.Command("open", rawURL).Start()
+		cmd = exec.Command("open", rawURL)
 	case "linux":
-		return exec.Command("xdg-open", rawURL).Start()
+		cmd = exec.Command("xdg-open", rawURL)
 	case "windows":
-		return exec.Command("cmd", "/c", "start", "", rawURL).Start()
+		cmd = exec.Command("cmd", "/c", "start", "", rawURL)
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go cmd.Wait() // reap child process
+	return nil
 }
