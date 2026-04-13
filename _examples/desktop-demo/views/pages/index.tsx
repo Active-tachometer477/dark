@@ -55,6 +55,16 @@ export default function IndexPage({ notes, username, flashes, _errors, _formData
         <div id="native-output" style="margin-top: 8px; display: none;"></div>
       </div>
 
+      {/* External links (should open in system browser) */}
+      <div class="card">
+        <h3>External Links</h3>
+        <div class="actions">
+          <a href="https://github.com/i2y/dark" class="btn-ghost btn-sm">GitHub Repo</a>
+          <a href="https://htmx.org" class="btn-ghost btn-sm">htmx.org</a>
+          <button class="btn-ghost btn-sm" onclick="dark.openExternal('https://preactjs.com')">Preact (programmatic)</button>
+        </div>
+      </div>
+
       {/* Note form with validation (htmx) */}
       <div class="card">
         <h3>Add Note</h3>
