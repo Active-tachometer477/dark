@@ -5,6 +5,25 @@ import (
 	"fmt"
 )
 
+// externalLinkJS intercepts clicks on external <a> links and opens them
+// in the system browser. The origin placeholder is filled at runtime via
+// fmt.Sprintf in setupBridge.
+const externalLinkJSTmpl = `(function() {
+  var origin = %s;
+  window.dark.openExternal = function(url) { return __dark_open_external(url); };
+  document.addEventListener("click", function(e) {
+    var el = e.target;
+    while (el && el.tagName !== "A") el = el.parentElement;
+    if (!el || !el.href) return;
+    try { var u = new URL(el.href, location.href); } catch(_) { return; }
+    if (u.protocol !== "http:" && u.protocol !== "https:") return;
+    if (u.origin === origin) return;
+    e.preventDefault();
+    e.stopPropagation();
+    __dark_open_external(el.href);
+  }, true);
+})();`
+
 // bridgeJS is injected into every page via WebView.Init.
 // It provides the window.dark API for events and window control.
 const bridgeJS = `(function() {
@@ -89,6 +108,9 @@ func (a *App) setupBridge() {
 	a.wv.Bind("__dark_close", func() {
 		a.wv.Terminate()
 	})
+
+	// Inject external-link interception with the resolved origin.
+	a.wv.Init(fmt.Sprintf(externalLinkJSTmpl, jsonString(a.baseURL)))
 }
 
 // jsonString returns a JSON-encoded string literal for safe JS embedding.

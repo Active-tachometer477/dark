@@ -2,6 +2,10 @@ package desktop
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
+	"os/exec"
+	"runtime"
 
 	"github.com/atotto/clipboard"
 	"github.com/gen2brain/beeep"
@@ -96,4 +100,32 @@ func (a *App) setupFeatures() {
 	a.wv.Bind("__dark_notify", func(title, message string) error {
 		return beeep.Notify(title, message, "")
 	})
+
+	// --- Open External URLs ---
+
+	a.wv.Bind("__dark_open_external", func(rawURL string) error {
+		return openInBrowser(rawURL)
+	})
+}
+
+// openInBrowser opens a URL in the system's default browser.
+// Only http and https schemes are allowed.
+func openInBrowser(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("unsupported scheme %q: only http and https are allowed", u.Scheme)
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		return exec.Command("open", rawURL).Start()
+	case "linux":
+		return exec.Command("xdg-open", rawURL).Start()
+	case "windows":
+		return exec.Command("cmd", "/c", "start", "", rawURL).Start()
+	default:
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
 }

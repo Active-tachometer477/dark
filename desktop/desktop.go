@@ -125,6 +125,7 @@ type App struct {
 	handlers  map[string][]func(data any)
 	ready     chan struct{}
 	readyOnce sync.Once
+	baseURL   string // internal HTTP server origin, set during Run
 }
 
 // webview returns the current WebView, or nil if Run has not started.
@@ -166,6 +167,7 @@ func (a *App) Run() error {
 
 	port := ln.Addr().(*net.TCPAddr).Port
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
+	a.baseURL = url
 
 	srv := &http.Server{Handler: a.handler}
 	defer srv.Close()

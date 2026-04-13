@@ -204,6 +204,17 @@ Native desktop notifications via [beeep](https://github.com/gen2brain/beeep).
 await dark.notify("Title", "Message body");
 ```
 
+### External Links
+
+Links to external URLs automatically open in the system's default browser instead of navigating inside the webview. Any `<a href="https://...">` pointing outside the internal server is intercepted.
+
+```javascript
+// Programmatic usage
+await dark.openExternal("https://example.com");
+```
+
+Only `http` and `https` URLs are supported. Other schemes (`file://`, `javascript:`, etc.) are ignored for security.
+
 ## Window Control
 
 ### From JavaScript
