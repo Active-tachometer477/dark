@@ -3,23 +3,24 @@ module github.com/i2y/dark
 go 1.26
 
 require (
+	github.com/atotto/clipboard v0.1.4
 	github.com/crgimenes/glaze v0.0.14
 	github.com/evanw/esbuild v0.27.4
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/i2y/ramune v0.8.0
+	github.com/gen2brain/beeep v0.11.2
+	github.com/i2y/ramune v0.9.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
+	github.com/ncruces/zenity v0.10.14
 )
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast v1.1.2 // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
-	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/dchest/jsmin v0.0.0-20220218165748-59f39799265f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
-	github.com/gen2brain/beeep v0.11.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
@@ -28,7 +29,6 @@ require (
 	github.com/josephspurrier/goversioninfo v1.4.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/ncruces/zenity v0.10.14 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
