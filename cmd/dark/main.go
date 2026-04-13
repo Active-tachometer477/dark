@@ -31,6 +31,8 @@ func main() {
 			os.Exit(1)
 		}
 		cmdGenerate(os.Args[2], os.Args[3])
+	case "package", "pkg":
+		cmdPackage(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -47,6 +49,7 @@ Usage:
   dark new <project-name> [--ui react]   Create a new dark project
   dark generate route <name>             Generate a page route
   dark generate island <name>            Generate an island component
+  dark package <macos|windows|linux>     Package desktop app for distribution
   dark help                              Show this help
 
 Options:

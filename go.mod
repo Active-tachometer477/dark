@@ -8,7 +8,7 @@ require (
 	github.com/evanw/esbuild v0.27.4
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gen2brain/beeep v0.11.2
-	github.com/i2y/ramune v0.9.0
+	github.com/i2y/ramune v0.9.1
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/ncruces/zenity v0.10.14
 )
