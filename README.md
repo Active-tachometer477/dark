@@ -646,6 +646,45 @@ func main() {
 
 Build and deploy as a single binary — no `views/` or `public/` directories needed at runtime.
 
+## CLI
+
+Install the CLI tool:
+
+```bash
+go install github.com/i2y/dark/cmd/dark@latest
+```
+
+### Scaffold a new project
+
+```bash
+dark new my-app              # Preact (default)
+dark new my-app --ui react   # React
+cd my-app && go mod tidy && make dev
+```
+
+### Generate components
+
+```bash
+dark generate route users     # creates views/pages/users.tsx
+dark generate island counter  # creates views/islands/counter.tsx
+```
+
+### Package desktop apps
+
+Build distributable packages for desktop apps:
+
+```bash
+dark package macos   --name "My App" --icon icon.png --id com.example.myapp
+dark package windows --name "My App" --icon icon.png
+dark package linux   --name "My App" --icon icon.png
+```
+
+- **macOS** — `.app` bundle with Info.plist, launcher script, optional .icns icon
+- **Windows** — `.exe` (GUI mode, built with QuickJS backend) + views/public
+- **Linux** — binary + `.desktop` file + views/public
+
+Options: `--out` (output directory, default: `dist`), `--arch` (target architecture, default: current).
+
 ## Deploy
 
 See [_examples/deploy](_examples/deploy/) for a production-ready setup with Docker multi-stage build and Fly.io configuration.
