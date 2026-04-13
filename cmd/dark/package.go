@@ -165,9 +165,12 @@ func safeRemoveAll(dir string) {
 	if err != nil {
 		fatal("resolve path: %v", err)
 	}
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		fatal("getwd: %v", err)
+	}
 	rel, err := filepath.Rel(cwd, abs)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
 		fatal("refusing to remove %s: outside working directory", abs)
 	}
 	os.RemoveAll(abs)
