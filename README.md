@@ -8,11 +8,11 @@ Dark renders TSX components on the server using [ramune](https://github.com/i2y/
 
 Dark uses ramune for SSR, which supports two JS engine backends:
 
-| | JSC (default) | QuickJS (`-tags quickjs`) |
+| | JSC (default) | QuickJS-NG (`-tags qjswasm`) |
 |---|---|---|
-| **Engine** | Apple JavaScriptCore via [purego](https://github.com/ebitengine/purego) | [modernc.org/quickjs](https://pkg.go.dev/modernc.org/quickjs) (pure Go) |
-| **JIT** | Yes | No |
-| **Platforms** | macOS, Linux | macOS, Linux, Windows |
+| **Engine** | Apple JavaScriptCore via [purego](https://github.com/ebitengine/purego) | QuickJS-NG compiled to WebAssembly, driven by [wazero](https://github.com/tetratelabs/wazero) (pure Go) |
+| **JIT** | Yes | wazero compiler-mode (AOT WASM→native) |
+| **Platforms** | macOS, Linux | macOS, Linux, Windows, FreeBSD |
 | **System deps** | macOS: none. Linux: `apt install libjavascriptcoregtk-4.1-dev` | None |
 | **Best for** | Production performance | Portability, zero-dependency deploys |
 
@@ -29,13 +29,13 @@ sudo apt install libjavascriptcoregtk-4.1-dev
 go build .
 ```
 
-### QuickJS backend
+### QuickJS-NG backend (qjswasm)
 
 ```bash
-go build -tags quickjs .
+go build -tags qjswasm .
 ```
 
-No shared libraries needed. Works on all platforms including Windows. Trade-off: no JIT, so JS execution is slower (SSR render time increases). For most apps where the bottleneck is I/O (database, network), this is negligible.
+No shared libraries needed. Works on all platforms including Windows. Trade-off: slower than JSC's JIT, but the wazero compiler-mode AOT path closes much of the gap. For most apps where the bottleneck is I/O (database, network), the difference is negligible.
 
 ## Built on net/http
 
@@ -680,7 +680,7 @@ dark package linux   --name "My App" --icon icon.png
 ```
 
 - **macOS** — `.app` bundle with Info.plist, launcher script, optional .icns icon
-- **Windows** — `.exe` (GUI mode, built with QuickJS backend) + views/public
+- **Windows** — `.exe` (GUI mode, built with qjswasm backend) + views/public
 - **Linux** — binary + `.desktop` file + views/public
 
 Options: `--out` (output directory, default: `dist`), `--arch` (target architecture, default: current).

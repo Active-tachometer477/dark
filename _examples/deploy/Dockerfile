@@ -20,7 +20,7 @@ RUN go mod download
 COPY . .
 
 # Build a statically linked binary.
-# CGO_ENABLED=0 uses the pure-Go QuickJS engine in ramune.
+# CGO_ENABLED=0 disables CGO; ramune's default JSC backend uses purego (no CGO).
 RUN CGO_ENABLED=0 go build -o /app ./cmd/server
 
 # --- Runtime stage ---

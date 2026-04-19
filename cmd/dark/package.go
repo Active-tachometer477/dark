@@ -121,8 +121,8 @@ func packageWindows(cfg packageConfig) {
 		fatal("create directory: %v", err)
 	}
 
-	fmt.Printf("Building %s (windows/%s, quickjs)...\n", cfg.name, cfg.arch)
-	buildBinary("windows", cfg.arch, "-H windowsgui", filepath.Join(appDir, cfg.name+".exe"), "quickjs")
+	fmt.Printf("Building %s (windows/%s, qjswasm)...\n", cfg.name, cfg.arch)
+	buildBinary("windows", cfg.arch, "-H windowsgui", filepath.Join(appDir, cfg.name+".exe"), "qjswasm")
 
 	copyAssets(appDir)
 

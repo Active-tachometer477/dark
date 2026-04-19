@@ -8,7 +8,7 @@ require (
 	github.com/evanw/esbuild v0.27.4
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gen2brain/beeep v0.11.2
-	github.com/i2y/ramune v0.12.0
+	github.com/i2y/ramune v0.13.2
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/ncruces/zenity v0.10.14
 )
@@ -40,8 +40,10 @@ require (
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd // indirect
+	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yuin/goldmark v1.8.2 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
@@ -52,9 +54,7 @@ require (
 	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	modernc.org/libc v1.70.0 // indirect
-	modernc.org/libquickjs v0.12.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/quickjs v0.17.1 // indirect
 	modernc.org/sqlite v1.47.0 // indirect
 )

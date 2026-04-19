@@ -51,7 +51,7 @@ docker run -p 3000:3000 -e SESSION_SECRET=$(openssl rand -hex 32) myapp
 See `Dockerfile` in this directory for the multi-stage build.
 
 Key points:
-- `CGO_ENABLED=0` uses ramune's pure-Go QuickJS engine (no system dependencies)
+- `CGO_ENABLED=0` disables CGO; ramune's default JSC backend uses purego (no CGO)
 - Views and static assets are copied into the image
 - `~/.cache/dark/` is writable for island package caching
 
